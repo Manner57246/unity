@@ -1,0 +1,11 @@
+Ember Marches — card illustration credits
+
+The illustrated card plates incorporate the following icons from Game-icons.net, licensed under Creative Commons Attribution 3.0 Unported (CC BY 3.0).
+https://game-icons.net/  |  https://creativecommons.org/licenses/by/3.0/
+Source SVGs: https://github.com/game-icons/icons
+
+Lorc: broadsword, bolt-shield, piercing-sword, angel-wings, winged-sword, footprint, harpoon-trident, grapple, anchor, winged-emblem, cracked-shield, winged-shield.
+Delapouite: eye-of-horus, warhammer.
+DarkZaitzev: hooded-figure.
+
+Adaptations: cropped and recoloured emblems, ink outlines, landscape illustration, grain and ornamental frames. The map, combat floor and characters were drawn for this project.

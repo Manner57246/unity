@@ -1,0 +1,186 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c35b1e1c10d46f4084f3149a1dba08e, type: 3}
+  m_Name: DefaultRun
+  m_EditorClassIdentifier: Rouge.Unity::Rouge.Unity.RunDefinition
+  rules:
+    layers: 5
+    maxHealth: 32
+    startingGold: 5
+    enemyHealth: 18
+    enemyAttack: 4
+    bossHealth: 32
+    bossAttack: 6
+    shopPrice: 5
+    victoryGold: 3
+    healAmount: 8
+    roadsideEventPercent: 15
+    cards:
+    - id: strike
+      title: "斩击"
+      effect: 0
+      element: 0
+      rarity: 0
+      value: 4
+    - id: guard
+      title: "架盾"
+      effect: 1
+      element: 0
+      rarity: 0
+      value: 3
+    - id: read
+      title: "识破"
+      effect: 2
+      element: 0
+      rarity: 0
+      value: 2
+    - id: jab
+      title: "快刺"
+      effect: 0
+      element: 0
+      rarity: 0
+      value: 3
+    - id: flap
+      title: "振翅"
+      effect: 3
+      element: 0
+      rarity: 1
+      value: 0
+    - id: pinion
+      title: "翼刃"
+      effect: 0
+      element: 0
+      rarity: 1
+      value: 5
+    - id: track
+      title: "追踪"
+      effect: 2
+      element: 0
+      rarity: 1
+      value: 3
+    - id: ambush
+      title: "伏击"
+      effect: 0
+      element: 0
+      rarity: 1
+      value: 5
+    - id: oar
+      title: "撑篙"
+      effect: 1
+      element: 0
+      rarity: 1
+      value: 4
+    - id: hook
+      title: "船钩"
+      effect: 0
+      element: 0
+      rarity: 1
+      value: 5
+    - id: anchor
+      title: "锚定"
+      effect: 1
+      element: 0
+      rarity: 1
+      value: 5
+    - id: hammer
+      title: "岩锤"
+      effect: 0
+      element: 0
+      rarity: 1
+      value: 5
+    - id: return
+      title: "回旋翼"
+      effect: 4
+      element: 0
+      rarity: 2
+      value: 3
+    - id: breach
+      title: "破阵"
+      effect: 0
+      element: 0
+      rarity: 2
+      value: 7
+    - id: ward
+      title: "古老守护"
+      effect: 1
+      element: 0
+      rarity: 2
+      value: 7
+    - id: cutback
+      title: "折锋"
+      effect: 6
+      element: 0
+      rarity: 0
+      value: 3
+    - id: study
+      title: "整势"
+      effect: 7
+      element: 0
+      rarity: 0
+      value: 2
+    - id: moon
+      title: "弦月斩"
+      effect: 5
+      element: 0
+      rarity: 2
+      value: 6
+    - id: wardcut
+      title: "守势斩"
+      effect: 6
+      element: 0
+      rarity: 1
+      value: 4
+    - id: ember
+      title: "火矢"
+      effect: 8
+      element: 1
+      rarity: 0
+      value: 4
+    - id: rime
+      title: "霜针"
+      effect: 8
+      element: 2
+      rarity: 0
+      value: 2
+    - id: tide
+      title: "涌泉"
+      effect: 8
+      element: 3
+      rarity: 0
+      value: 2
+    - id: gale
+      title: "旋风"
+      effect: 8
+      element: 4
+      rarity: 0
+      value: 2
+    - id: crag
+      title: "石壁"
+      effect: 8
+      element: 5
+      rarity: 0
+      value: 4
+    - id: bolt
+      title: "落雷"
+      effect: 8
+      element: 6
+      rarity: 0
+      value: 5
+    starterDeck:
+    - strike
+    - guard
+    - read
+    - jab
+    - strike
+    - strike
+    - cutback
+    - study

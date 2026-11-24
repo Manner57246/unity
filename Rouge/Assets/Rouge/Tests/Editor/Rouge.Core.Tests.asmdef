@@ -1,0 +1,1 @@
+{"name":"Rouge.Core.Tests","references":["Rouge.Core"],"optionalUnityReferences":["TestAssemblies"],"includePlatforms":["Editor"]}

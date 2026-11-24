@@ -1,0 +1,137 @@
+.expedition { flex-grow: 1; justify-content: space-between; padding: 8px 14px; color: #eee5cc; -unity-font-definition: url("InterfaceArt/Font/fusion-pixel-12px-proportional-zh_hans.ttf"); }
+.bar { flex-direction: row; align-items: center; justify-content: space-between; padding: 6px 14px; min-height: 47px; }
+.brand { font-size: 24px; color: #ffdc97; }
+.status { font-size: 17px; color: #c3cbb7; }
+.panel { align-self: stretch; padding: 10px 16px; }
+.title { font-size: 24px; color: #ffe5ac; white-space: normal; }
+.note, .prompt { font-size: 16px; color: #d4d9c6; white-space: normal; }
+.expedition Button { margin: 2px 7px 2px 0; padding: 6px 12px; font-size: 16px; color: #e8e5cb; background-color: #2e4846; border-width: 1px 1px 3px 1px; border-color: #8b8c71 #556b5d #2b342d #687968; border-radius: 1px; }
+.expedition Button:hover { background-color: #46615a; border-top-color: #e2c68b; }
+.expedition .selected { background-color: #73593b; color: #fff0bf; border-color: #e6c286 #a48859 #493829 #a48859; }
+.map-window { flex-grow: 1; overflow: hidden; min-height: 95px; border-width: 2px; border-color: #a78a57 #62543e #544737 #a78a57; margin: 4px 0; }
+.stat-meter { width: 175px; margin: 0 3px; padding: 0 6px; }
+.meter-track { height: 6px; background-color: #111c20; border-width: 1px; border-color: #5e6152; margin: 1px 2px 1px; }
+.meter-fill { height: 100%; }
+.health .meter-fill { background-color: #d96e5b; }
+.movement .meter-fill { background-color: #77ba9c; }
+.combat-readout { position: absolute; left: 18px; top: 70px; max-width: 49%; padding: 12px 15px; }
+.play-counter { position: absolute; right: 17px; bottom: 15px; align-items: center; padding: 9px 15px; }
+.folio-card { width: 148px; height: 172px; flex-shrink: 0; margin: 0 6px; align-items: stretch; border-width: 3px; border-radius: 2px; border-color: #9e8154; background-color: #e0cd9e; padding: 2px 4px; }
+.card-title { padding: 0; margin: 0; height: 25px; font-size: 18px; background-color: #343f3a; color: #ffdda2; -unity-text-align: middle-center; }
+.card-rules { flex-grow: 1; margin: 0; padding: 1px 1px; white-space: normal; color: #37332b; font-size: 15px; -unity-text-align: upper-center; }
+.journal-heading { color: #f3d69b; font-size: 18px; margin-bottom: 5px; }
+.node-info { position: absolute; width: 245px; min-height: 85px; padding: 8px 12px; }
+.counter-number { font-size: 26px; color: #ffdf98; }
+.meter-value { color: #fff0cc; font-size: 18px; }
+.meter-label { color: #dad1b5; font-size: 15px; }
+.region-journal { width: 23%; max-width: 308px; min-width: 155px; flex-shrink: 0; padding: 12px 13px; }
+.node-info .node-heading { color: #ffda9c; font-size: 18px; }
+.row { flex-direction: row; flex-wrap: wrap; align-items: center; margin-top: 7px; }
+.prompt { margin-right: 12px; }
+.expedition Button:disabled { opacity: 0.4; }
+.expedition .die { min-width: 34px; }
+.expedition .secondary { background-color: rgb(49,58,62); }
+.expedition .order-slot { min-width: 112px; border-color: rgb(178,153,100); }
+.expedition .commit { margin-left: 14px; background-color: rgb(117,75,38); }
+.forecast { margin-top: 6px; font-size: 16px; color: rgb(246,209,147); white-space: normal; }
+
+.parchment { flex-grow: 1; background-size: 100% 100%; }
+.expedition .map-pin { position: absolute; translate: -50% 6px; margin: 0; border-radius: 2px; background-color: rgba(56,44,35,.94); border-color: rgb(204,167,103); border-width: 0 0 2px 0; color: rgb(255,232,180); font-size: 15px; padding: 2px 9px; }
+.expedition .surveyed { color: rgb(212,209,187); border-bottom-width: 1px; border-color: rgb(139,130,108); background-color: rgba(45,47,42,.87); }
+.battle-folio { border-top-width: 1px; border-top-color: rgb(170,143,97); }
+.sequence, .hand-tray { flex-direction: row; align-items: center; justify-content: center; }
+.hand-tray { min-height: 174px; padding-top: 3px; }
+.socket { width: 95px; height: 48px; margin: 0 5px; border-width: 1px; border-radius: 3px; border-color: rgb(117,100,75); justify-content: center; align-items: center; }
+.empty-slot { color: rgb(170,156,133); font-size: 14px; }
+.folio-card.Uncommon {border-color: rgb(108,153,126);}
+.folio-card.Rare { border-color: rgb(92,151,192); }
+.folio-card:hover, .folio-card:focus { border-color: rgb(254,217,126); translate: 0 -4px; }
+.illuminated { height: 64px; min-height: 64px; flex-shrink: 0; background-size: 100% 100%; }
+.card-type { padding: 0; margin: 0; height: 19px; color: rgb(96,64,44); font-size: 12px; -unity-text-align: middle-center; }
+.compact { width: 93px; height: 46px; padding: 0; margin: 0; border-width: 1px; }
+.compact .card-title {height: 18px; font-size: 13px;}
+.compact .illuminated {height: 23px; min-height: 23px;}
+.compact .card-type {display: none;}
+.forecast { -unity-text-align: middle-center; font-size: 15px; margin-top: 1px; }
+.vitals, .meter-head, .nav-footer { flex-direction: row; align-items: center; justify-content: space-between; }
+.vitals { flex-wrap: nowrap; flex-shrink: 0; padding: 0 4px; }
+.waypoint { position: absolute; width: 76px; height: 68px; translate: -50% -74%; align-items: center; background-size: contain; transform-origin: 50% 74%; }
+.waypoint:hover { scale: 1.08; }
+.past-node { -unity-background-image-tint-color: rgb(174,173,159); }
+.out-of-range { -unity-background-image-tint-color: rgb(185,174,167); }
+.walker { position: absolute; width: 82px; height: 82px; translate: -50% -62%; }
+.node-info Label { color: rgb(240,224,195); font-size: 14px; }
+.mini-map { position: absolute; top: 8px; right: 8px; width: 17%; max-width: 170px; height: 82px; border-width: 2px; border-color: rgb(107,85,57); overflow: hidden; }
+.view-frame { border-width: 1px; border-color: rgb(255,238,158); background-color: rgba(255,232,155,.18); }
+.locator { position: absolute; width: 6px; height: 6px; translate: -50% -50%; background-color: rgb(132,42,31); border-radius: 3px; }
+.socket.playing-card { border-color: rgb(255,216,127); background-color: rgb(123,90,41); }
+.resolving .hand-tray, .resolving .forecast, .resolving .commit { display: none; }
+.region-layout { flex-direction: row; }
+.region-map { flex-grow: 1; overflow: hidden; }
+.region-journal .mini-map { position: relative; top: 0; right: 0; width: 100%; max-width: none; height: 38%; min-height: 80px; max-height: 185px; margin-bottom: 16px; }
+.trail-row { flex-direction: row; align-items: center; padding: 4px 0; border-top-width: 1px; border-top-color: rgb(83,81,68); }
+.trail-row:hover { background-color: rgba(185,159,106,.12); }
+.trail-copy { flex-shrink: 1; }
+.trail-copy Label { color: rgb(236,222,193); font-size: 15px; white-space: normal; }
+.trail-copy .trail-cost { color: rgb(195,191,164); font-size: 13px; }
+.trail-icon { width: 35px; height: 32px; flex-shrink: 0; background-size: contain; margin-right: 4px; }
+.waypoint .landmark-caption { position: absolute; top: 59px; padding: 0 6px 1px; color: rgb(255,232,187); background-color: rgba(56,47,37,.86); border-bottom-width: 1px; border-bottom-color: rgb(176,151,104); -unity-text-align: middle-center; font-size: 13px; }
+.combat-report { color: rgb(252,218,149); font-size: 17px; }
+.chain-hint { color: rgb(161,215,207); font-size: 16px; }
+.counter-caption { font-size: 14px; color: rgb(215,196,160); }
+.card-fan { position: absolute; bottom: 0; left: 3%; right: 15%; height: 204px; overflow: hidden; }
+.card-fan .folio-card { position: absolute; width: 152px; height: 186px; margin: 0; transform-origin: 50% 90%; translate: 0 0; transition-property: bottom, left, rotate; transition-duration: .10s; }
+.card-fan .fan-selected { border-color: rgb(255,222,125); background-color: rgb(248,226,178); }
+.folio-card .reactive-title { background-color: rgb(53,75,88); color: rgb(255,226,148); font-size: 15px; }
+
+
+/* Shared brass corners retain their pixel size as the panels resize. */
+.bar, .panel, .region-journal, .play-counter, .node-info {
+    background-image: url("InterfaceArt/brass-frame.png");
+    -unity-slice-left: 14; -unity-slice-right: 14; -unity-slice-top: 14; -unity-slice-bottom: 14;
+    border-width: 0; border-radius: 0;
+}
+.crest, .meter-key, .ledger-stat, .event-heading { flex-direction: row; align-items: center; }
+.compass, .small-icon, .ledger-icon, .event-seal { flex-shrink: 0; background-size: contain; }
+.compass { width: 36px; height: 36px; margin-right: 10px; }
+.small-icon { width: 19px; height: 19px; margin-right: 4px; }
+.ledger-icon { width: 27px; height: 27px; margin-right: 5px; }
+.ledger-stat { margin-left: 8px; padding: 0 8px; border-left-width: 1px; border-left-color: #685a43; }
+.ledger-key { color: #c2b599; font-size: 14px; height: 18px; margin: 0; padding: 0; -unity-text-align: middle-left; }
+.ledger-value { color: #ffe5ac; font-size: 19px; height: 24px; margin: 0; padding: 0; -unity-text-align: middle-left; }
+.event-seal { width: 58px; height: 58px; margin-right: 14px; background-color: #30362e; border-width: 1px; border-color: #96764d; }
+.event-copy { flex-shrink: 1; }
+.event-loot { color: #dec28d; font-size: 16px; white-space: normal; }
+.expedition .event-choice { align-items: flex-start; align-self: stretch; min-width: 132px; max-width: 285px; justify-content: center; padding: 6px 12px; }
+.option-name { color: #ffdf9f; font-size: 18px; }
+.option-terms { color: #d0d9c8; font-size: 15px; white-space: normal; -unity-text-align: middle-left; }
+.expedition .leave-event { background-color: #292d28; border-color: #71644d; color: #d1c7b0; }
+.enemy-intent { color: #ffba91; background-color: #3a3030; white-space: normal; padding: 4px 6px; margin-top: 3px; border-left-color: #d08061; border-left-width: 2px; font-size: 16px; }
+.icon-compass { background-image: url("InterfaceArt/compass.png"); }
+.icon-life { background-image: url("InterfaceArt/life.png"); }
+.icon-boot { background-image: url("InterfaceArt/boot.png"); }
+.icon-coin { background-image: url("InterfaceArt/coin.png"); }
+.icon-cards { background-image: url("InterfaceArt/cards.png"); }
+.icon-Cache { background-image: url("InterfaceArt/Cache.png"); }
+.icon-Ferry { background-image: url("InterfaceArt/Ferry.png"); }
+.icon-CaveIn { background-image: url("InterfaceArt/CaveIn.png"); }
+.icon-Shrine { background-image: url("InterfaceArt/Shrine.png"); }
+.icon-Herbalist { background-image: url("InterfaceArt/Herbalist.png"); }
+.icon-Nest { background-image: url("InterfaceArt/Nest.png"); }
+.icon-Beacon { background-image: url("InterfaceArt/Beacon.png"); }
+
+.menu-landscape { flex-grow: 1; justify-content: center; align-items: flex-start; background-size: cover; border-width: 2px; border-color: #ab8c59 #5e533d #574632 #ab8c59; }
+.cover-folio { width: 36%; min-width: 305px; max-width: 460px; align-self: flex-start; margin-left: 5%; padding: 26px 28px; }
+.cover-compass { width: 68px; height: 68px; background-size: contain; margin-bottom: 8px; }
+.game-title { color: #ffdd96; font-size: 48px; padding: 0; margin: 1px 0 6px; }
+.result-title { color: #ffdd96; font-size: 36px; }
+.cover-intro { color: #d7d4b8; white-space: normal; font-size: 17px; margin: 5px 0 15px; }
+.cover-folio Button, .menu-sheet Button { margin: 4px 0; padding: 8px 14px; }
+.expedition .cover-primary { color: #ffedc6; background-color: #765739; border-color: #dcb275 #977650 #453524 #aa8759; }
+.expedition .cover-primary:hover { background-color: #917044; }
+.record-route { font-size: 16px; color: #ebce92; white-space: normal; margin: 4px 0 8px; }
+.record-seed { font-size: 14px; color: #abb7a7; margin: 4px 0 12px; }
+.menu-shade { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background-color: rgba(10,17,20,.76); align-items: center; justify-content: center; }
+.menu-sheet { width: 440px; max-width: 92%; max-height: 90%; align-self: center; padding: 20px 24px; }
+.guide-topic { color: #efca87; font-size: 18px; margin: 10px 0 2px; }
+.expedition .menu-trigger { margin-left: 7px; padding: 4px 8px; }

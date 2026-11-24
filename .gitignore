@@ -1,0 +1,7 @@
+/*/Library/
+/*/Temp/
+/*/Logs/
+/*/UserSettings/
+/*/obj/
+**/*_DoNotShip/
+**/__pycache__/

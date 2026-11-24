@@ -1,0 +1,39 @@
+.frosthold { overflow: hidden; padding: 0; }
+.frost-map { position: absolute; background-size: 100% 100%; }
+.cloak { position: absolute; width: 39px; height: 51px; translate: -50% -94%; background-size: 100% 100%; }
+.frost-side { position: absolute; right: 0; top: 0; bottom: 0; width: 33.333%; background-color: #24333c; padding: 0 0 12px 0; border-left-width: 2px; border-left-color: #bca272; translate: 105% 0; transition-property: translate; transition-duration: .25s; transition-timing-function: ease-out; }
+.frost-side .unity-scroller--vertical { width: 8px; background-color: #24333c; }
+.frost-side .unity-scroller__low-button, .frost-side .unity-scroller__high-button { display: none; }
+.frost-side .unity-base-slider__tracker { background-color: #25333c; border-width: 0; }
+.frost-side .unity-base-slider__dragger { min-width: 5px; background-color: #938774; border-width: 0; }
+.frost-side.frost-open { translate: 0 0; }
+.frost-side .title { margin: 13px 17px 4px; }
+.frost-side .note { margin: 10px 17px; }
+.expedition .frost-side Button { margin: 5px 16px; white-space: normal; }
+.frost-plate { height: 240px; flex-shrink: 0; background-color: #202e37; background-size: cover; background-repeat: no-repeat; background-position: center; }
+.frost-combat { position: absolute; top: 0; left: 0; right: 0; bottom: 0; padding: 8px 14px; }
+.expedition .frost-pin, .expedition .frost-here { position: absolute; translate: -50% 3px; background-color: rgba(29,47,59,.92); color: #ffdc91; padding: 2px 7px; font-size: 14px; }
+.expedition .frost-here { color: #dce9e7; }
+.frost-epilogue { position: absolute; left: 12%; right: 12%; bottom: 3%; align-items: center; padding: 8px 16px; background-color: rgba(22,32,43,.95); }
+.combo-guide { position: absolute; right: 2%; top: 70px; max-width: 40%; padding: 8px 12px; background-color: rgba(19,34,44,.94); border-left-width: 2px; border-left-color: #c69c56; }
+.combo-heading { color: #f0cf8e; font-size: 16px; }
+.combo-slots { flex-direction: row; margin-top: 4px; margin-bottom: 4px; }
+.combo-slot { width: 31px; height: 20px; margin-right: 3px; border-width: 1px; border-color: #778585; background-color: #293d48; background-size: cover; }
+.combo-tip { color: #daebed; font-size: 14px; white-space: normal; }
+.card-fan .combo-ready { border-color: #ffce70; }
+.combo-ready .card-title { color: #ffda80; background-color: #54412d; }
+.combo-banner { position: absolute; top: 51%; right: 8%; padding: 5px 13px; background-color: rgba(20,30,42,.91); border-left-width: 3px; border-left-color: #eac375; }
+.combo-name { color: #ffe4a0; font-size: 24px; }
+.expedition .frost-side Button.story-skip {
+    position: absolute;
+    right: 7px;
+    bottom: 7px;
+    margin: 0;
+    padding: 3px 8px;
+    border-width: 1px;
+    border-color: #797e72;
+    background-color: rgba(29,43,51,.9);
+    color: #efdfb9;
+    font-size: 13px;
+}
+.expedition .frost-side Button:disabled { opacity: .8; }

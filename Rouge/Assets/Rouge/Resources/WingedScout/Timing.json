@@ -1,0 +1,315 @@
+{ "frames": [
+   {
+    "filename": "WingedScout 0.aseprite",
+    "frame": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 230
+   },
+   {
+    "filename": "WingedScout 1.aseprite",
+    "frame": { "x": 160, "y": 0, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 230
+   },
+   {
+    "filename": "WingedScout 2.aseprite",
+    "frame": { "x": 320, "y": 0, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 100
+   },
+   {
+    "filename": "WingedScout 3.aseprite",
+    "frame": { "x": 480, "y": 0, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 85
+   },
+   {
+    "filename": "WingedScout 4.aseprite",
+    "frame": { "x": 640, "y": 0, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 90
+   },
+   {
+    "filename": "WingedScout 5.aseprite",
+    "frame": { "x": 800, "y": 0, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 100
+   },
+   {
+    "filename": "WingedScout 6.aseprite",
+    "frame": { "x": 960, "y": 0, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 85
+   },
+   {
+    "filename": "WingedScout 7.aseprite",
+    "frame": { "x": 1120, "y": 0, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 90
+   },
+   {
+    "filename": "WingedScout 8.aseprite",
+    "frame": { "x": 0, "y": 160, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 105
+   },
+   {
+    "filename": "WingedScout 9.aseprite",
+    "frame": { "x": 160, "y": 160, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 85
+   },
+   {
+    "filename": "WingedScout 10.aseprite",
+    "frame": { "x": 320, "y": 160, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 125
+   },
+   {
+    "filename": "WingedScout 11.aseprite",
+    "frame": { "x": 480, "y": 160, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 140
+   },
+   {
+    "filename": "WingedScout 12.aseprite",
+    "frame": { "x": 640, "y": 160, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 95
+   },
+   {
+    "filename": "WingedScout 13.aseprite",
+    "frame": { "x": 800, "y": 160, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 105
+   },
+   {
+    "filename": "WingedScout 14.aseprite",
+    "frame": { "x": 960, "y": 160, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 80
+   },
+   {
+    "filename": "WingedScout 15.aseprite",
+    "frame": { "x": 1120, "y": 160, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 110
+   },
+   {
+    "filename": "WingedScout 16.aseprite",
+    "frame": { "x": 0, "y": 320, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 155
+   },
+   {
+    "filename": "WingedScout 17.aseprite",
+    "frame": { "x": 160, "y": 320, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 80
+   },
+   {
+    "filename": "WingedScout 18.aseprite",
+    "frame": { "x": 320, "y": 320, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 100
+   },
+   {
+    "filename": "WingedScout 19.aseprite",
+    "frame": { "x": 480, "y": 320, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 150
+   },
+   {
+    "filename": "WingedScout 20.aseprite",
+    "frame": { "x": 640, "y": 320, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 100
+   },
+   {
+    "filename": "WingedScout 21.aseprite",
+    "frame": { "x": 800, "y": 320, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 120
+   },
+   {
+    "filename": "WingedScout 22.aseprite",
+    "frame": { "x": 960, "y": 320, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 70
+   },
+   {
+    "filename": "WingedScout 23.aseprite",
+    "frame": { "x": 1120, "y": 320, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 110
+   },
+   {
+    "filename": "WingedScout 24.aseprite",
+    "frame": { "x": 0, "y": 480, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 150
+   },
+   {
+    "filename": "WingedScout 25.aseprite",
+    "frame": { "x": 160, "y": 480, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 180
+   },
+   {
+    "filename": "WingedScout 26.aseprite",
+    "frame": { "x": 320, "y": 480, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 100
+   },
+   {
+    "filename": "WingedScout 27.aseprite",
+    "frame": { "x": 480, "y": 480, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 120
+   },
+   {
+    "filename": "WingedScout 28.aseprite",
+    "frame": { "x": 640, "y": 480, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 70
+   },
+   {
+    "filename": "WingedScout 29.aseprite",
+    "frame": { "x": 800, "y": 480, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 110
+   },
+   {
+    "filename": "WingedScout 30.aseprite",
+    "frame": { "x": 960, "y": 480, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 150
+   },
+   {
+    "filename": "WingedScout 31.aseprite",
+    "frame": { "x": 1120, "y": 480, "w": 160, "h": 160 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 160, "h": 160 },
+    "sourceSize": { "w": 160, "h": 160 },
+    "duration": 180
+   }
+ ],
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3-rc4-dev",
+  "image": "Scout.png",
+  "format": "RGBA8888",
+  "size": { "w": 1280, "h": 640 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "Idle", "from": 0, "to": 1, "direction": "forward", "color": "#000000ff" },
+   { "name": "Walk", "from": 2, "to": 7, "direction": "forward", "color": "#000000ff" },
+   { "name": "Flap", "from": 8, "to": 13, "direction": "forward", "color": "#000000ff" },
+   { "name": "Slash", "from": 14, "to": 19, "direction": "forward", "color": "#000000ff" },
+   { "name": "Backhand", "from": 20, "to": 25, "direction": "forward", "color": "#000000ff" },
+   { "name": "Overhead", "from": 26, "to": 31, "direction": "forward", "color": "#000000ff" }
+  ],
+  "layers": [
+   { "name": "Ground", "opacity": 255, "blendMode": "normal" },
+   { "name": "Wings", "opacity": 255, "blendMode": "normal" },
+   { "name": "Cloak and boots", "opacity": 255, "blendMode": "normal" },
+   { "name": "Knight", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arms and blade", "opacity": 255, "blendMode": "normal" },
+   { "name": "Motion accents", "opacity": 255, "blendMode": "normal" }
+  ]
+ }
+}
