@@ -64,7 +64,7 @@ namespace SuperDodgeball.Editor
             crowd.ResetCrowd();Shoot(fan,DodgeWeapon.Bowling);yield return new WaitForSeconds(.32f);
             Check(fan.Hits==1 && fan.BodyPosition.y>fan.transform.position.y+1.12f,"Bowling impact launches the physical spectator upward: hits="+fan.Hits+" body="+fan.BodyPosition.y+" floor="+fan.transform.position.y);
             crowd.ResetCrowd();DodgeGame.Instance.ClearBalls();yield return null;
-            Shoot(fan,DodgeWeapon.Glove);yield return new WaitForSeconds(.14f);Check(fan.Reacting && fan.Hits==1,"Glove projectiles also knock spectators out of their seats");
+            Shoot(fan,DodgeWeapon.Rocket);yield return new WaitForSeconds(.14f);Check(fan.Reacting && fan.Hits==1,"Rocket projectiles also knock spectators out of their seats");
             crowd.ResetCrowd();DodgeGame.Instance.ClearBalls();DodgeGame.Instance.crowdEnabled=true;
             Check(crowd.ScheduleThrow(App.Actors[0],DodgeCrowdThrow.RottenEgg,0),"A seated spectator can prepare its original egg attack");
             Shoot(fan);yield return new WaitForSeconds(.15f);Check(!crowd.Pending && crowd.EggsThrown==0,"Hitting the throwing spectator interrupts the telegraphed attack");

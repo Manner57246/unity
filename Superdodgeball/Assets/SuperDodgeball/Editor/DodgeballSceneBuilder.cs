@@ -178,9 +178,13 @@ namespace SuperDodgeball.Editor
                 for (int x = 0; x < 128; x++)
                 {
                     float u = x / 128f, v = y / 64f;
-                    float band = Mathf.Min(Mathf.Abs(u - 0.25f), Mathf.Abs(u - 0.75f));
-                    bool stripe = band < 0.035f || Mathf.Abs(v - 0.5f) < 0.045f;
-                    texture.SetPixel(x, y, stripe ? new Color(1f, 0.97f, 0.84f) : new Color(0.97f, 0.58f, 0.38f));
+                    float seam = Mathf.Min(Mathf.Abs(u - .25f), Mathf.Abs(u - .75f));
+                    float equator = Mathf.Abs(v - .5f - .105f * Mathf.Sin(u * Mathf.PI * 4f));
+                    float band = Mathf.Min(seam, equator);
+                    Color32 panel = new Color32(239, 67, 38, 255);
+                    Color32 edge = new Color32(87, 41, 39, 255);
+                    Color32 cream = new Color32(255, 239, 156, 255);
+                    texture.SetPixel(x, y, band < .043f ? cream : band < .059f ? edge : panel);
                 }
                 texture.Apply();
                 AssetDatabase.CreateAsset(texture, path);

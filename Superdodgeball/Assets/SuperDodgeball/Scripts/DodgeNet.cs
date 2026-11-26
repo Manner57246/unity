@@ -11,8 +11,8 @@ namespace SuperDodgeball
     [DefaultExecutionOrder(-250)]
     public sealed class DodgeNet : MonoBehaviour
     {
-        const int Protocol = 20261125;
-        enum Packet : byte { Hello = 1, Lobby, Snapshot, Input, Ready, Ping, Reject }
+        const int Protocol = 20261207;
+        enum Packet : byte { Hello = 1, Lobby, Snapshot, Input, Ready, Ping, Reject, Hit }
         [Serializable] sealed class LobbyPacket
         {
             public DodgeRoom room;
@@ -206,6 +206,7 @@ namespace SuperDodgeball
                         App.ReceiveRoom(lobby.room, lobby.page, lobby.slot, lobby.left, lobby.countdown);
                     }
                     else if (type == Packet.Snapshot) ReadSnapshot(r);
+                    else if (type == Packet.Hit) App.PresentHit(r.ReadInt32(), r.ReadByte(), r.ReadByte());
                     else if (type != Packet.Ping) throw new InvalidDataException("Unexpected server packet");
                 }
             }
@@ -225,6 +226,14 @@ namespace SuperDodgeball
         {
             if (IsClient && server != null) server.Send(Make(Packet.Ready, w => w.Write(ready)));
         }
+        internal void SendHit(int source, int target)
+        {
+            if (!Online || IsClient) return;
+            var packet = Make(Packet.Hit, w => { w.Write(App.Room.round); w.Write((byte)source); w.Write((byte)target); });
+            foreach (var peer in peers)
+                if (peer.Slot > 0 && (peer.Slot == source || peer.Slot == target)) peer.Send(packet);
+        }
+
         public void BroadcastLobby()
         {
             if (!Online || IsClient || !App.Initialized) return;
@@ -255,7 +264,7 @@ namespace SuperDodgeball
         {
             var input = new DodgeInput { move = new Vector2(Finite(r.ReadSingle()), Finite(r.ReadSingle())),
                 yaw = Finite(r.ReadSingle()), pitch = Finite(r.ReadSingle()), aim = ReadVector(r),
-                held = (DodgeButtons)(r.ReadInt32() & 31), pressed = (DodgeButtons)(r.ReadInt32() & 2016) };
+                held = (DodgeButtons)(r.ReadInt32() & 31), pressed = (DodgeButtons)(r.ReadInt32() & 16352) };
             input.move = Vector2.ClampMagnitude(input.move, 1f); input.yaw = Mathf.Repeat(input.yaw, 360f); input.pitch = Mathf.Clamp(input.pitch, -32f, 65f);
             input.aim = Vector3.ClampMagnitude(input.aim, 100f);
             return input;
@@ -291,7 +300,7 @@ namespace SuperDodgeball
                     w.Write(actor.IsStunned); w.Write(actor.HitCount);
                     w.Write(actor.CrowdStatus.EggRemaining); w.Write(actor.CrowdStatus.SoapRemaining);
                     w.Write((byte)actor.Arsenal.Weapon); w.Write((byte)actor.Arsenal.Charges); w.Write(actor.Arsenal.SpecialSelected);
-                    actor.Kit.Write(w);
+                    actor.Kit.Write(w); actor.Zeus.Write(w);
                     var controller = App.Controllers[i]; var bot = actor.GetComponent<DodgeBot>();
                     w.Write((byte)(controller.enabled ? controller.VisualWeapon : bot ? bot.VisualWeapon : actor.Arsenal.Selected));
                     w.Write(controller.enabled ? controller.ShotsFired : bot ? bot.ShotsFired : 0);
@@ -311,8 +320,9 @@ namespace SuperDodgeball
                 foreach (var drop in activeDrops)
                 {
                     if (drop.NetworkId == 0) drop.NetworkId = ++nextId;
-                    w.Write(drop.NetworkId); w.Write((byte)drop.Kind); w.Write((byte)drop.Reward); w.Write((byte)drop.Item); w.Write(drop.FromCrowd); w.Write(drop.Landed);
+                    w.Write(drop.NetworkId); w.Write((byte)drop.Kind); w.Write((byte)drop.Reward); w.Write((byte)drop.Item); w.Write((byte)drop.Skill); w.Write(drop.FromCrowd); w.Write(drop.Landed);
                     WriteVector(w, drop.transform.position); WriteRotation(w, drop.transform.rotation);
+                    WriteVector(w,drop.LandingPoint);
                 }
                 if (!crowd) crowd = FindFirstObjectByType<DodgeCrowd>();
                 w.Write(crowd != null); if (crowd) crowd.WritePose(w);
@@ -339,7 +349,7 @@ namespace SuperDodgeball
                 actor.ApplyReplicaHits(stunned, hitCount);
                 actor.CrowdStatus.ApplyReplica(r.ReadSingle(), r.ReadSingle());
                 actor.Arsenal.ApplyReplica((DodgeWeapon)r.ReadByte(), r.ReadByte(), r.ReadBoolean());
-                actor.Kit.Read(r);
+                actor.Kit.Read(r); actor.Zeus.Read(r);
                 actor.ReplicaVisualWeapon = (DodgeWeapon)r.ReadByte();
                 actor.ApplyReplicaShots(r.ReadInt32());
                 int style = r.ReadByte(); if (actor.Puppet.Wardrobe.Style != style) actor.Puppet.Wardrobe.SetStyle(style);
@@ -364,11 +374,12 @@ namespace SuperDodgeball
             seen.Clear(); count = r.ReadByte(); if (count > 8) throw new InvalidDataException("Too many gifts");
             for (int i = 0; i < count; i++)
             {
-                int id = r.ReadInt32(); var kind = (DodgeGiftKind)r.ReadByte(); var weapon = (DodgeWeapon)r.ReadByte(); var item=(DodgeItem)r.ReadByte(); bool tossed = r.ReadBoolean(), landed = r.ReadBoolean();
+                int id = r.ReadInt32(); var kind = (DodgeGiftKind)r.ReadByte(); var weapon = (DodgeWeapon)r.ReadByte(); var item=(DodgeItem)r.ReadByte(); var skill=(DodgeSkill)r.ReadByte(); bool tossed = r.ReadBoolean(), landed = r.ReadBoolean();
                 Vector3 position = ReadVector(r); Quaternion rotation = ReadRotation(r);
+                Vector3 landing = ReadVector(r);
                 if (!drops.TryGetValue(id, out var view) || !view)
                 {
-                    var drop = tossed ? DodgeAirdrop.Toss(Game, position, position, kind, weapon,item) : DodgeAirdrop.Spawn(Game, position, weapon, landed, kind,item);
+                    var drop = tossed ? DodgeAirdrop.Toss(Game, position, landing, kind, weapon,item,skill) : DodgeAirdrop.Spawn(Game, landing, weapon, landed, kind,item,skill);
                     drop.Replica = true; view = drop.gameObject.AddComponent<DodgeNetView>(); drops[id] = view;
                 }
                 view.GetComponent<DodgeAirdrop>().ApplyReplica(landed); view.Target(position, rotation); seen.Add(id);

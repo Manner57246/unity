@@ -47,7 +47,7 @@ namespace SuperDodgeball.Editor
         bool ScreenText(string name,string value)
         {
             var labels=App.Stadium.GetComponentsInChildren<TextMesh>(true).Where(t=>t.name==name).ToArray();
-            return labels.Length==6 && labels.All(t=>t.text==value);
+            return labels.Length==2 && labels.All(t=>t.text==value);
         }
         void BallAt(DodgeLobbyAction action,int owner=0)
         {
@@ -67,7 +67,7 @@ namespace SuperDodgeball.Editor
             var side=GameObject.Find("01 - Playground").GetComponentsInChildren<Collider>().First(c=>c.name=="Side bumper" && c.transform.position.x>0);
             Check(side.bounds.min.x>13.8f,"Side collision barriers move out with the enlarged floor");
             Check(App.Clubhouse.InCourt(new Vector3(12,.05f,15),1) && !App.Clubhouse.InCourt(new Vector3(13,.05f,16),1),"Court entry accepts the new play area and rejects outside positions");
-            Check(App.Stadium && App.Stadium.ScreenCount==6,"Indoor gym has four suspended displays and two end-wall screens");
+            Check(App.Stadium && App.Stadium.ScreenCount==2,"Indoor gym has two end-wall screens");
             RaycastHit shell;
             Check(Physics.Raycast(new Vector3(0,1,0),Vector3.up,out shell,20) && shell.collider.GetComponent<DodgeSurface>(),"The indoor arena has a solid overhead enclosure");
             Check(!GameObject.Find("01 - Playground").transform.GetComponentsInChildren<Transform>(true).Any(t=>t.name=="Cotton cloud" && t.gameObject.activeSelf),"Outdoor sky decorations are removed from the indoor court");
@@ -122,9 +122,9 @@ namespace SuperDodgeball.Editor
             while(App.Page==DodgePage.Staging && Time.time<deadline)yield return null;
             Check(App.Page==DodgePage.Countdown && App.AllOnCourt,"Bots follow their team into court and all participants trigger 3-2-1");
             yield return new WaitForEndOfFrame();
-            Check(App.Stadium.CountdownVisible && ScreenText("Opening countdown","3"),"All six physical screens display the opening 3");
-            yield return new WaitForSeconds(1.03f);Check(ScreenText("Opening countdown","2"),"All six screens advance to 2");
-            yield return new WaitForSeconds(1.03f);Check(ScreenText("Opening countdown","1"),"All six screens advance to 1");
+            Check(App.Stadium.CountdownVisible && ScreenText("Opening countdown","3"),"Both wall screens display the opening 3");
+            yield return new WaitForSeconds(1.03f);Check(ScreenText("Opening countdown","2"),"Both wall screens advance to 2");
+            yield return new WaitForSeconds(1.03f);Check(ScreenText("Opening countdown","1"),"Both wall screens advance to 1");
             App.PlaceActor(0,new Vector3(0f,.05f,DodgeCourt.RestZ(22f)),180f);yield return new WaitForSeconds(.1f);
             Check(App.Page==DodgePage.Staging && App.Countdown==3f,"Leaving court during countdown cancels and resets it");
             App.PlaceActor(0,App.Clubhouse.CourtSpawn(1,0),180f);
@@ -146,7 +146,7 @@ namespace SuperDodgeball.Editor
             Check(ScreenText("Peach score","1") && ScreenText("Mint score","0"),"A credited hit updates the team score on every screen");
             App.FinishMatch();yield return new WaitForEndOfFrame();
             Check(ScreenText("Scoreboard state",App.WinnerText),"Physical screens show the actual result after the match");
-            Check(App.Page==DodgePage.Results && App.WinnerText.Contains("蜜桃队"),"Results declare the winning team");
+            Check(App.Page==DodgePage.Results && App.WinnerText.Contains(DodgeColleges.Ridge),"Results declare the winning team");
             App.BackToLobby();yield return new WaitForSeconds(.1f);
             Check(ScreenText("Mint score","0") && ScreenText("Peach score","0"),"Returning to the lobby clears all previous scores on the screens");
             Check(App.Page==DodgePage.Lobby && App.Actors[0].transform.position.z< -40f && App.Room.seats[0].outfit==2,"Rematch returns to the clubhouse with clothing and teams intact");

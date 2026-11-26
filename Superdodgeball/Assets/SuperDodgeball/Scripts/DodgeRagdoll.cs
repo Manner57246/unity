@@ -16,6 +16,7 @@ namespace SuperDodgeball
             public Transform parentTarget;
             public Quaternion bindRotation;
             public ConfigurableJoint joint;
+            public Vector3 restAnchor, restConnected;
             public int spineIndex = -1;
             public Vector3 previousTargetPosition, targetVelocity;
             public Vector3 pausedVelocity, pausedAngularVelocity;
@@ -97,6 +98,22 @@ namespace SuperDodgeball
         public bool IsStunned => loose || Time.time < standUntil;
         public bool IsLoose => loose;
         public int BodyCount => bones.Count + (pelvis ? 1 : 0);
+        internal bool BlastContact(Vector3 origin,float radius,out Vector3 nearest)
+        {
+            nearest=Vector3.zero;
+            float best=radius*radius;
+            bool exposed=false;
+            foreach(var shape in colliders)
+            {
+                if(!shape || !shape.enabled || !shape.gameObject.activeInHierarchy ||
+                    !shape.TryGetComponent<DodgeHitbox>(out var zone) || zone.actor!=actor)continue;
+                Vector3 p=shape.ClosestPoint(origin);
+                float distance=(p-origin).sqrMagnitude;
+                if(distance>best || (distance>.0001f && !DodgePartyEffects.LineClear(origin,p)))continue;
+                nearest=p; best=distance; exposed=true;
+            }
+            return exposed;
+        }
         public Vector3 BodyCenter => bones.Count > 0 ? bones[0].body.position : transform.position + Vector3.up;
         public Vector3 HandPosition => throwingHand
             ? throwingHand.position + throwingHand.rotation * Quaternion.Inverse(handTarget.rotation) * (actor.heldBall.position - handTarget.position)
@@ -158,11 +175,18 @@ namespace SuperDodgeball
                 Transform hip = side < 0 ? actor.leftLeg : actor.rightLeg;
                 Transform knee = side < 0 ? actor.leftShin : actor.rightShin;
                 var upperArm = AddBone(shoulder.Find("Arm hitbox"), torso, shoulder.position, 0.4f, 120f, 160f);
+                if(spine)
+                {
+                    Muscle(torso,"Thunder pec "+side,new Vector3(side*.235f,-.15f,.23f),new Vector3(.59f,.39f,.40f),side*10);
+                    Muscle(upperArm,"Thunder deltoid "+side,new Vector3(side*.075f,.115f,0),new Vector3(.50f,.46f,.49f),side*12);
+                    Muscle(upperArm,"Thunder biceps "+side,new Vector3(side*.085f,-.12f,.045f),new Vector3(.39f,.51f,.39f),-side*10);
+                }
                 var forearm = AddBone(elbow.Find("Forearm hitbox"), upperArm, elbow.position, 0.3f, 115f, 145f);
                 CopySkin(elbow.Find("Hand hitbox"), forearm, true);
                 var thigh = AddBone(hip.Find("Leg hitbox"), pelvis, hip.position, 0.65f, 120f, 125f);
                 var shin = AddBone(knee.Find("Shin hitbox"), thigh, knee.position, 0.45f, 100f, 125f);
-                CopySkin(knee.Find("Foot hitbox"), shin, false);
+                var foot=CopySkin(knee.Find("Foot hitbox"), shin, false);
+                if(spine)DodgeWardrobe.Sneaker(foot,side,actor.bodyRenderers[0].sharedMaterial);
                 if (spine)
                 {
                     BuildLimbSurface(upperArm, forearm, 0.16f, 0.14f, 0.29f, 0.14f);
@@ -175,7 +199,7 @@ namespace SuperDodgeball
                 }
             }
             var badge = actor.upperBody.Find("Bean number");
-            if (badge) CopySkin(badge, torso, false);
+            if (badge && !spine) CopySkin(badge, torso, false);
             if (actor.heldBall) heldCopy = CopySkin(actor.heldBall, throwingHand, false);
             foreach (var collider in colliders)
             {
@@ -215,8 +239,8 @@ namespace SuperDodgeball
             }
             var tube = NewTube("Continuous limb", actor.bodyRenderers[0].sharedMaterial);
             colored.Add(tube.Surface);
-            DodgeTube garment = shorts ? NewTube("Shorts leg", actor.bodyRenderers[0].sharedMaterial) : null;
-            if (garment) DodgeWardrobe.Tint(garment.Surface, new Color(0.29f, 0.34f, 0.52f));
+            DodgeTube garment=NewTube(shorts?"Track shorts":"Shooting sleeve",actor.bodyRenderers[0].sharedMaterial);
+            DodgeWardrobe.Tint(garment.Surface,shorts?DodgeColleges.Navy:DodgeColleges.Cream);
             var path = new Vector3[3];
             var sizes = new[] { radius, radius * 0.94f, radius * 0.86f };
             drawSurfaces.Add(() =>
@@ -227,12 +251,38 @@ namespace SuperDodgeball
                 tube.Draw(path, sizes, transform.forward, 1f);
                 if (garment)
                 {
-                    garment.gameObject.SetActive(Wardrobe && Wardrobe.Style == 2);
-                    if (garment.gameObject.activeSelf) garment.Draw(path, sizes, transform.forward, 1f, 0f, 0.55f, 0.025f);
+                    garment.gameObject.SetActive(Wardrobe && !Wardrobe.Olympian && (shorts || Wardrobe.Style==2));
+                    if (garment.gameObject.activeSelf) garment.Draw(path, sizes, transform.forward, 1f, 0f, shorts ? 0.60f : .33f, 0.027f);
                 }
             });
         }
 
+        readonly List<(Transform mesh,Vector3 size)> muscles=new List<(Transform,Vector3)>();
+        float drawnMuscle=-1;
+        void Muscle(Rigidbody bone,string label,Vector3 offset,Vector3 size,float roll)
+        {
+            var shape=GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            shape.name=label;
+            shape.transform.SetParent(bone.transform,false);
+            shape.transform.localPosition=offset;shape.transform.localRotation=Quaternion.Euler(0,0,roll);
+            var collider=shape.GetComponent<SphereCollider>();
+            collider.enabled=false;Destroy(collider);
+            var zone=shape.AddComponent<BoxCollider>();zone.isTrigger=true;zone.size=Vector3.one*.79f;
+            shape.AddComponent<DodgeHitbox>().actor=actor;
+            var surface=shape.GetComponent<Renderer>();surface.sharedMaterial=actor.bodyRenderers[0].sharedMaterial;
+            colored.Add(surface);muscles.Add((shape.transform,size));shape.SetActive(false);
+        }
+        void DrawMuscles()
+        {
+            float blend=actor.Kit.MuscleBlend * transform.localScale.x;
+            if(Mathf.Approximately(drawnMuscle,blend))return;
+            drawnMuscle=blend;
+            foreach(var muscle in muscles)
+            {
+                muscle.mesh.localScale=muscle.size*blend;
+                muscle.mesh.gameObject.SetActive(blend>.02f);
+            }
+        }
         Rigidbody NewBody(string label, Vector3 position, Quaternion rotation, float mass)
         {
             var go = new GameObject(label);
@@ -272,7 +322,7 @@ namespace SuperDodgeball
             joint.projectionAngle = 12f;
             joint.enableCollision = false;
             joint.rotationDriveMode = RotationDriveMode.Slerp;
-            bone.joint = joint;
+            bone.joint = joint; bone.restAnchor=joint.anchor; bone.restConnected=joint.connectedAnchor;
             bone.bindRotation = Quaternion.Inverse(parent.rotation) * body.rotation;
             foreach (var possibleParent in bones)
                 if (possibleParent.body == parent) bone.parentTarget = possibleParent.target;
@@ -349,6 +399,14 @@ namespace SuperDodgeball
             if (paused) return;
             if (loose)
             {
+                if(DodgeVenueDirector.InUpdraft)
+                {
+                    float speed=pelvis.linearVelocity.y;
+                    DodgeVenueDirector.ApplyWind(pelvis.position-Vector3.up*.72f,ref speed);
+                    Vector3 lift=Vector3.up*(speed-pelvis.linearVelocity.y);
+                    pelvis.AddForce(lift,ForceMode.VelocityChange);
+                    foreach(var bone in bones)bone.body.AddForce(lift,ForceMode.VelocityChange);
+                }
                 if (Time.time < limpUntil || (launched && pelvis.position.y > 1.15f && Time.time < airRecoveryDeadline))
                 {
                     transform.position = pelvis.position - Vector3.up * 0.72f;
@@ -363,7 +421,7 @@ namespace SuperDodgeball
                 Vector3 position = pelvis.position;
                 position.x = Mathf.Clamp(position.x, -10.4f, 10.4f);
                 position.z = Mathf.Clamp(position.z, -13.3f, 13.3f);
-                position.y = 0.05f;
+                position.y = DodgeVenueDirector.InUpdraft?Mathf.Max(.05f,pelvis.position.y-.72f):.05f;
                 transform.position = position;
                 pelvis.isKinematic = true;
                 if (motor) motor.enabled = true;
@@ -375,6 +433,9 @@ namespace SuperDodgeball
             float recovery = Mathf.SmoothStep(0f, 1f, 1f - Mathf.Max(0f, standUntil - Time.time) / 0.65f);
             foreach (var bone in bones)
             {
+                float scale=transform.localScale.x;
+                bone.joint.anchor=bone.restAnchor*scale;
+                if (bone.spineIndex < 0) bone.joint.connectedAnchor=bone.restConnected*scale;
                 if (bone.spineIndex >= 0)
                 {
                     int i = bone.spineIndex;
@@ -389,9 +450,9 @@ namespace SuperDodgeball
                 else if (spine && bone.parentTarget == spine.sections[DodgeSpine.Segments - 1])
                 {
                     Vector3 anchor = bone.body.name == actor.head.name
-                        ? actor.head.position - actor.head.up * 0.18f
-                        : bone.target.position + bone.target.up * 0.16f;
-                    bone.joint.connectedAnchor = bone.parentTarget.InverseTransformPoint(anchor);
+                        ? actor.head.position - actor.head.up * (0.18f*scale)
+                        : bone.target.position + bone.target.up * (0.16f*scale);
+                    bone.joint.connectedAnchor = bone.parentTarget.InverseTransformPoint(anchor)*transform.localScale.x;
                 }
                 // Distributed muscle support lets a curl or airborne dive reach its
                 // pose inside the dodge window. Hands and head need support: their
@@ -417,6 +478,48 @@ namespace SuperDodgeball
             }
         }
 
+        // Project the actual outfit and puppet meshes into one squash pose. Joints and
+        // rigidbodies retain their normal transforms, even while the ragdoll is moving.
+        readonly List<MeshFilter> flatMeshes = new List<MeshFilter>();
+        readonly List<MeshRenderer> flatRenderers = new List<MeshRenderer>();
+        MaterialPropertyBlock flatColor;
+        DodgeWeapon flatWeapon;
+        void RestoreFlatRenderers()
+        {
+            foreach(var renderer in flatRenderers)if(renderer)renderer.forceRenderingOff=false;
+            flatRenderers.Clear();flatMeshes.Clear();
+        }
+        void DrawHeavySquash()
+        {
+            float amount=actor.Kit.HeavySquash;
+            if(amount<=0)
+            {
+                if(flatMeshes.Count>0)RestoreFlatRenderers();
+                return;
+            }
+            if(flatMeshes.Count==0 || flatWeapon!=actor.Arsenal.Selected)
+            {
+                RestoreFlatRenderers();flatWeapon=actor.Arsenal.Selected;
+                foreach(var mesh in assembly.GetComponentsInChildren<MeshFilter>(true))
+                    if(mesh.TryGetComponent<MeshRenderer>(out var renderer) && mesh.sharedMesh)
+                    {flatMeshes.Add(mesh);flatRenderers.Add(renderer);renderer.forceRenderingOff=true;}
+                if(flatColor==null)flatColor=new MaterialPropertyBlock();
+            }
+            var pivot=new Vector3(pelvis.position.x,transform.position.y,pelvis.position.z);
+            var shape=Matrix4x4.Translate(pivot)*Matrix4x4.Scale(new Vector3(1+.4f*amount,1-.74f*amount,1+.36f*amount))*Matrix4x4.Translate(-pivot);
+            for(int i=0;i<flatMeshes.Count;i++)
+            {
+                var renderer=flatRenderers[i];
+                if(!renderer || !renderer.enabled || !renderer.gameObject.activeInHierarchy)continue;
+                renderer.GetPropertyBlock(flatColor);
+                var geometry=flatMeshes[i];
+                var settings=new RenderParams(renderer.sharedMaterial){matProps=flatColor,
+                    layer=renderer.gameObject.layer,shadowCastingMode=renderer.shadowCastingMode,receiveShadows=renderer.receiveShadows};
+                Graphics.RenderMesh(settings,geometry.sharedMesh,0,shape*renderer.localToWorldMatrix);
+            }
+        }
+        void OnDisable(){RestoreFlatRenderers();}
+
         void LateUpdate()
         {
             if (!Ready) return;
@@ -431,6 +534,8 @@ namespace SuperDodgeball
                     body.rotation = Quaternion.Slerp(body.rotation, netRotations[i], amount);
                 }
             }
+            pelvis.GetComponent<SphereCollider>().radius=.23f*transform.localScale.x;
+            DrawMuscles();
             foreach (var skin in skins)
             {
                 if (!skin.source || !skin.copy) continue;
@@ -441,7 +546,7 @@ namespace SuperDodgeball
                 var player = actor.GetComponent<DodgePlayer>();
                 var bot = actor.GetComponent<DodgeBot>();
                 actor.Arsenal.DrawHeld(heldCopy, DodgeGame.Instance.popMaterial,
-                    DodgeGame.IsReplica ? actor.ReplicaVisualWeapon : player && player.enabled ? player.VisualWeapon : bot ? bot.VisualWeapon : actor.Arsenal.Selected);
+                    actor.Zeus.Transformed ? DodgeWeapon.Thunderbolt : DodgeGame.IsReplica ? actor.ReplicaVisualWeapon : player && player.enabled ? player.VisualWeapon : bot ? bot.VisualWeapon : actor.Arsenal.Selected);
                 heldCopy.gameObject.SetActive(actor.heldBall.gameObject.activeSelf && !IsStunned);
             }
             if (torsoSurface)
@@ -449,18 +554,19 @@ namespace SuperDodgeball
                 for (int i = 0; i < spineBodies.Length; i++)
                 {
                     BodyPath[i] = spineBodies[i].position;
-                    BodyRadii[i] = spine.Radius(i / (float)spineBodies.Length);
+                    BodyRadii[i] = spine.Radius(i / (float)spineBodies.Length)*(1f+.38f*actor.Kit.HeavySquash);
                 }
                 int last = spineBodies.Length - 1;
                 BodyPath[last + 1] = spineBodies[last].position + spineBodies[last].rotation * Vector3.up * spine.Length(last);
-                BodyRadii[last + 1] = spine.Radius(1f);
+                BodyRadii[last + 1] = spine.Radius(1f)*(1f+.38f*actor.Kit.HeavySquash);
                 torsoSurface.Draw(BodyPath, BodyRadii, transform.forward);
                 foreach (var draw in drawSurfaces) draw();
                 Wardrobe.Draw();
+                DrawHeavySquash();
             }
         }
 
-        public void Hit(Vector3 point, Vector3 impulse, float launch = 0f)
+        public void Hit(Vector3 point, Vector3 impulse, float launch = 0f, float carry = 3f)
         {
             if (!Ready) return;
             loose = true;
@@ -480,7 +586,7 @@ namespace SuperDodgeball
             pelvis.AddForce(impulse * 0.35f + Vector3.up * 0.6f, ForceMode.Impulse);
             if (launched)
             {
-                Vector3 flight = Vector3.ProjectOnPlane(impulse, Vector3.up).normalized * 3f + Vector3.up * Mathf.Clamp(launch, 0f, 10f);
+                Vector3 flight = Vector3.ProjectOnPlane(impulse, Vector3.up).normalized * carry + Vector3.up * Mathf.Clamp(launch, 0f, 10f);
                 pelvis.AddForce(flight, ForceMode.VelocityChange);
                 foreach (var bone in bones) bone.body.AddForce(flight, ForceMode.VelocityChange);
             }

@@ -12,7 +12,8 @@ namespace SuperDodgeball
         public float OAmount { get; private set; }
         public float Amount => Mathf.Max(LAmount, OAmount);
         public Vector3 RingCenter => transform.TransformPoint(new Vector3(0f, 1.38f, 0f));
-        public float Radius(float t) => Mathf.Lerp(
+        float muscle;
+        public float Radius(float t) => transform.lossyScale.x * (1+muscle*Mathf.SmoothStep(.17f,.90f,t))*Mathf.Lerp(
             Mathf.Lerp(0.27f + Mathf.Sin(Mathf.PI * t) * 0.095f, 0.245f + Mathf.Sin(Mathf.PI * t) * 0.015f, LAmount),
             0.175f, OAmount);
         public float Length(int index) => Vector3.Distance(sections[index].position, index < Segments - 1 ? sections[index + 1].position : chest.position);
@@ -20,6 +21,7 @@ namespace SuperDodgeball
         public void Pose(DodgeActor actor, float l, float o)
         {
             if (!chest || sections.Length != Segments || !sections[0]) return;
+            muscle=actor.Kit.MuscleBlend;
             LAmount = l;
             OAmount = o;
             Quaternion baseRotation = actor.upperBody.rotation;
@@ -45,14 +47,14 @@ namespace SuperDodgeball
                 float bendRadius = lLength / Mathf.PI;
                 Vector3 lp = new Vector3(bendRadius * (1f - Mathf.Cos(angle)) + Mathf.Max(0f, t - 0.5f) * lLength,
                     0.72f + bendRadius * Mathf.Sin(angle), 0f);
-                Vector3 position = Vector3.Lerp(curlBase + curlRotation * curl, transform.TransformPoint(lp), l * (1f - o));
+                Vector3 position = Vector3.Lerp(curlBase + curlRotation * (curl * transform.lossyScale.x), transform.TransformPoint(lp), l * (1f - o));
                 Quaternion lr = transform.rotation * Quaternion.Euler(0f, 0f, -angle * Mathf.Rad2Deg);
                 // Physical links follow the chord between samples. Using the analytic
                 // tangent here would accumulate positional error around a closed bend.
                 float tangentAngle = startAngle + arc * t - Mathf.PI * 0.5f;
                 Quaternion or = curlRotation * Quaternion.Euler(0f, 0f, tangentAngle * Mathf.Rad2Deg);
                 Transform node = i == Segments ? chest : sections[i];
-                position.y=transform.position.y+(position.y-transform.position.y)*Mathf.Lerp(1f,.48f,actor.Kit.FlatAmount);
+                position.y=transform.position.y+(position.y-transform.position.y)*Mathf.Lerp(1f,.48f-.19f*actor.Kit.HeavySquash,actor.Kit.FlatAmount);
                 node.SetPositionAndRotation(position, Quaternion.Slerp(or, lr, l * (1f - o)));
                 node.localScale = Vector3.one;
             }
@@ -65,7 +67,7 @@ namespace SuperDodgeball
             for (int side = -1; side <= 1; side += 2)
             {
                 var shoulder = side < 0 ? actor.leftArm : actor.rightArm;
-                Vector3 normal = chest.TransformPoint(new Vector3(side * 0.37f, -0.18f, 0f));
+                Vector3 normal = chest.TransformPoint(new Vector3(side * (.37f+muscle*.18f), -0.18f, 0f));
                 Vector3 folded = transform.TransformPoint(new Vector3(-0.57f + side * 0.17f, 0.85f, 0f));
                 shoulder.position = Vector3.Lerp(normal, folded, o);
             }

@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 namespace SuperDodgeball
 {
     [ExecuteAlways, DefaultExecutionOrder(220)]
-    public sealed class DodgeStadium : MonoBehaviour
+    public sealed partial class DodgeStadium : MonoBehaviour
     {
         [Serializable] public struct Paint {public Renderer renderer; public Color color;}
         [SerializeField] List<Paint> paints=new List<Paint>();
@@ -14,7 +14,7 @@ namespace SuperDodgeball
         sealed class Display
         {
             public Transform face;
-            public TextMesh blue,peach,clock,status,countdown;
+            public TextMesh blue,peach,clock,status,countdown,brand;
             public GameObject scoreGroup;
         }
         readonly List<Display> displays=new List<Display>();
@@ -31,7 +31,7 @@ namespace SuperDodgeball
         void OnEnable(){ApplyPaint();}
         void ApplyPaint()
         {
-            foreach(var paint in paints)if(paint.renderer)DodgeWardrobe.Tint(paint.renderer,paint.color);
+            foreach(var paint in paints)if(paint.renderer)DodgeWardrobe.Tint(paint.renderer, CourtPaint(paint));
         }
         Transform Part(string name,Transform parent,Vector3 p,Vector3 size,Color color,bool solid=false,bool glowing=false,PrimitiveType shape=PrimitiveType.Cube)
         {
@@ -69,10 +69,10 @@ namespace SuperDodgeball
                 Part("Indoor end wall upper",root,new Vector3(0,9.8f,zEnd),new Vector3(44.7f,11.4f,.55f),Cream,true);
                 Part("End wall team band",root,new Vector3(0,4.45f,zEnd-side*.33f),new Vector3(44,.32f,.08f),side<0?Mint:Peach);
                 // Enclose the existing changing / upgrade rooms without changing their usable space.
-                Part("Rest wing roof",root,new Vector3(0,7.8f,side*26.45f),new Vector3(13.1f,.45f,10.1f),Cream,true);
+                Part("Rest wing roof",root,new Vector3(0,7.8f,side*26.45f),new Vector3(13.1f+2*DodgeCourt.RestSideExtension,.45f,10.1f),Cream,true);
                 for(int xSide=-1;xSide<=1;xSide+=2)
-                    Part("Rest wing upper side wall",root,new Vector3(xSide*6.35f,4.0f,side*26.45f),new Vector3(.3f,8,10.1f),Cream,true);
-                Part("Rest wing rear wall",root,new Vector3(0,4,side*31.5f),new Vector3(13,8,.35f),Cream,true);
+                    Part("Rest wing upper side wall",root,new Vector3(xSide*(6.35f+DodgeCourt.RestSideExtension),4.0f,side*26.45f),new Vector3(.3f,8,10.1f),Cream,true);
+                Part("Rest wing rear wall",root,new Vector3(0,4,side*31.5f),new Vector3(13+2*DodgeCourt.RestSideExtension,8,.35f),Cream,true);
                 BuildFace(root,new Vector3(0,8.0f,side*20.95f),side<0?180:0,1.04f,"End wall screen");
             }
             Part("Indoor roof",root,new Vector3(0,15.9f,0),new Vector3(45.5f,.65f,43.8f),new Color(.66f,.75f,.75f),true);
@@ -93,16 +93,6 @@ namespace SuperDodgeball
                 var lightObject=new GameObject("Indoor court downlight",typeof(Light));lightObject.transform.SetParent(root,false);lightObject.transform.localPosition=new Vector3(side*8,13.9f,z);lightObject.transform.localRotation=Quaternion.Euler(90,0,0);
                 var light=lightObject.GetComponent<Light>();light.type=LightType.Spot;light.spotAngle=100;light.range=25;light.intensity=5f;light.color=new Color(1,.93f,.82f);light.shadows=LightShadows.None;
             }
-            // Suspend four displays above the centre without covering any playable floor.
-            for(int side=-1;side<=1;side+=2)
-            {
-                Part("Scoreboard suspension",root,new Vector3(side*1.7f,13.1f,0),new Vector3(.09f,4,.09f),Ink);
-                BuildFace(root,new Vector3(0,8.9f,side*2.9f),side<0?0:180,.55f,"Centre end screen");
-                BuildFace(root,new Vector3(side*3.8f,8.9f,0),side<0?90:-90,.44f,"Centre sideline screen");
-            }
-            Part("Central scoreboard housing",root,new Vector3(0,8.9f,0),new Vector3(7.35f,4.25f,5.7f),Ink,true);
-            Part("Scoreboard crown",root,new Vector3(0,11.05f,0),new Vector3(8.1f,.35f,6.25f),Ink);
-            Part("Scoreboard underside",root,new Vector3(0,6.7f,0),new Vector3(7.9f,.2f,6.05f),Ink);
             var arena=GameObject.Find("01 - Playground");
             if(arena)
             {
@@ -137,9 +127,21 @@ namespace SuperDodgeball
                 }
             }
             var sun=GameObject.Find("Sun");
-            if(sun){var light=sun.GetComponent<Light>();light.intensity=.65f;light.shadows=LightShadows.None;light.color=new Color(1,.95f,.87f);}
+            if (sun)
+            {
+                var light = sun.GetComponent<Light>();
+                light.transform.rotation = Quaternion.Euler(53f, -34f, 0f);
+                light.intensity = 1.12f;
+                light.color = new Color(1f, .94f, .84f);
+                light.shadows = LightShadows.Soft;
+                light.shadowStrength = .68f;
+                light.shadowBias = .035f;
+                light.shadowNormalBias = .18f;
+            }
             RenderSettings.ambientMode=AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor=new Color(.73f,.78f,.8f);RenderSettings.ambientEquatorColor=new Color(.65f,.7f,.72f);RenderSettings.ambientGroundColor=new Color(.47f,.49f,.48f);
+            RenderSettings.ambientSkyColor = new Color(.66f, .77f, .83f);
+            RenderSettings.ambientEquatorColor = new Color(.43f, .55f, .60f);
+            RenderSettings.ambientGroundColor = new Color(.39f, .32f, .28f);
             RenderSettings.fog=false;
             ApplyPaint();
         }
@@ -149,13 +151,14 @@ namespace SuperDodgeball
         {
             app=owner;ApplyEnvironment();
             if(displays.Count>0)return;
+            DressCourt();
             foreach(var face in displayFaces)
             {
-                Label("Scoreboard brand",face,new Vector3(0,2.48f,-.34f),"SUPER DODGEBALL",.085f,new Color(.76f,.83f,.84f));
-                Label("Mint team name",face,new Vector3(-3.5f,1.55f,-.34f),"薄荷队",.1f,Mint);
-                Label("Peach team name",face,new Vector3(3.5f,1.55f,-.34f),"蜜桃队",.1f,Peach);
+                var brand=Label("Scoreboard brand",face,new Vector3(0,2.48f,-.34f),"SUPER DODGEBALL",.085f,new Color(.76f,.83f,.84f));
+                Label("Mint team name",face,new Vector3(-3.5f,1.55f,-.34f),DodgeColleges.Cape,.090f,Mint);
+                Label("Peach team name",face,new Vector3(3.5f,1.55f,-.34f),DodgeColleges.Ridge,.090f,Peach);
                 var group=new GameObject("Live team scores");group.transform.SetParent(face,false);
-                var display=new Display{face=face,scoreGroup=group};
+                var display=new Display{face=face,scoreGroup=group,brand=brand};
                 display.blue=Label("Mint score",group.transform,new Vector3(-3.5f,-.3f,-.36f),"0",.32f,Color.white);
                 display.peach=Label("Peach score",group.transform,new Vector3(3.5f,-.3f,-.36f),"0",.32f,Color.white);
                 Label("Score separator",group.transform,new Vector3(0,-.3f,-.36f),":",.22f,new Color(.58f,.68f,.72f));
@@ -178,10 +181,12 @@ namespace SuperDodgeball
             DisplayStatus=counting?"准备开球":app.Page==DodgePage.Staging?"全员进入球场后开始":app.Page==DodgePage.Playing?(app.TimeLeft>app.Room.duration-.8f?"GO!":"比赛进行中"):app.Page==DodgePage.Results?app.WinnerText:"等待入场";
             foreach(var display in displays)
             {
+                var venueName=app.Room.leg>0?DodgeVenueDirector.Title(app.CurrentVenue):"SUPER DODGEBALL";
+                if(display.brand.text!=venueName)display.brand.text=venueName;
                 display.scoreGroup.SetActive(!counting);display.countdown.gameObject.SetActive(counting);
                 display.clock.gameObject.SetActive(!counting);
                 display.status.transform.localPosition=new Vector3(0,counting?-2.3f:-1.85f,-.36f);
-                display.blue.text=BlueScore.ToString();display.peach.text=PeachScore.ToString();display.clock.text=DisplayClock;display.status.text=DisplayStatus;
+                display.blue.text=BlueScore.ToString();display.peach.text=PeachScore.ToString();display.clock.text=DisplayClock;display.status.text=app.Venue && app.Venue.Cue!=null?app.Venue.Cue:DisplayStatus;
                 display.countdown.text=CountdownNumber.ToString();
                 float pulse=1f+.055f*Mathf.Sin(Mathf.Repeat(app.Countdown,1)*Mathf.PI);
                 display.countdown.transform.localScale=Vector3.one*pulse;

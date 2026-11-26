@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 
 namespace SuperDodgeball
 {
-    [Flags] public enum DodgeButtons { Aim = 1, Left = 2, Right = 4, L = 8, O = 16, Fire = 32, Dive = 64, Standard = 128, Special = 256, Outfit = 512, UseItem = 1024 }
+    [Flags] public enum DodgeButtons { Aim = 1, Left = 2, Right = 4, L = 8, O = 16, Fire = 32, Dive = 64, Standard = 128, Special = 256, Outfit = 512, UseItem = 1024, Detonate = 2048, Collect = 4096, Drop = 8192 }
     public struct DodgeInput
     {
         public Vector2 move;
@@ -29,6 +29,9 @@ namespace SuperDodgeball
             if (k.digit1Key.wasPressedThisFrame) input.pressed |= DodgeButtons.Standard;
             if (k.digit2Key.wasPressedThisFrame) input.pressed |= DodgeButtons.Special;
             if (k.fKey.wasPressedThisFrame) input.pressed |= DodgeButtons.UseItem;
+            if (k.rKey.wasPressedThisFrame) input.pressed |= DodgeButtons.Detonate;
+            if (k.vKey.wasPressedThisFrame) input.pressed |= DodgeButtons.Drop;
+            if (k.gKey.wasPressedThisFrame) input.pressed |= DodgeButtons.Collect;
             if (k.cKey.wasPressedThisFrame) input.pressed |= DodgeButtons.Outfit;
             return input;
         }

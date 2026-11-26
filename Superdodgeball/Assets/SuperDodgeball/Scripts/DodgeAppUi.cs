@@ -15,11 +15,22 @@ namespace SuperDodgeball
         static readonly Color Mint = new Color(.51f,.84f,.75f);
         bool uiReady;
 
+        internal static Font CreateUiFont(int size)
+        {
+            if (Application.platform == RuntimePlatform.OSXEditor ||
+                Application.platform == RuntimePlatform.OSXPlayer)
+                return Resources.Load<Font>("Fonts/NotoSansSC-Regular") ??
+                       Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+            return Font.CreateDynamicFontFromOSFont(
+                new[] { "Microsoft YaHei", "Microsoft YaHei UI", "Noto Sans CJK SC", "Arial" }, size);
+        }
+
         void EnsureUi()
         {
             if (uiReady) return;
             uiReady = true;
-            uiFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "Microsoft YaHei UI", "Noto Sans CJK SC", "Arial" }, 24);
+            uiFont = CreateUiFont(24);
             panelTexture = Rounded(new Color(1f,.98f,.93f,.98f), 22);
             buttonTexture = Rounded(new Color(.87f,.93f,.89f), 14);
             hoverTexture = Rounded(new Color(.75f,.88f,.82f), 14);
@@ -94,11 +105,12 @@ namespace SuperDodgeball
         void HomePage()
         {
             Card(72,92,490,535);
-            Label("SUPER\nDODGEBALL",110,120,440,151,titleStyle);
+            Label("SUPER\nDODGEBALL",110,120,440,167,titleStyle);
             Label("软糖躲避球派对",113,284,410,44,headingStyle);
             if(Button("开始游戏",112,365,410,62,true))BeginParty();
-            if(Button("设置",112,445,410,55))settingsOpen=true;
-            if(Button("退出游戏",112,518,410,55))Application.Quit();
+            if(Button("庭院试打",112,440,410,48))NeighbourhoodCourt.Open();
+            if(Button("设置",112,498,198,48))settingsOpen=true;
+            if(Button("退出游戏",324,498,198,48))Application.Quit();
             Notice(622,540,550);
         }
         void JoinPage()
@@ -122,21 +134,37 @@ namespace SuperDodgeball
         void ResultsPage()
         {
             Card(235,62,810,594);
-            Label("派对结束",277,90,730,45,headingStyle);
-            Label(WinnerText+"   "+TeamScore(0)+" : "+TeamScore(1),277,149,730,65,headingStyle);
+            bool final=Room.leg>=SeriesLength;
+            bool bothTeams=Room.seats.Any(s=>s.kind!=DodgeSeatKind.Empty && s.team==0)
+                && Room.seats.Any(s=>s.kind!=DodgeSeatKind.Empty && s.team==1);
+            Label(final?SeriesWinner:"第 "+Room.leg+" / "+SeriesLength+" 回合结束",277,83,730,48,headingStyle);
+            Label("系列赛胜场     "+SeriesStanding,277,135,730,37);
+            Label("本回合     "+DodgeColleges.Cape+" "+TeamScore(0)+"  —  "+TeamScore(1)+" "+DodgeColleges.Ridge+"     ·     "+WinnerText,277,181,730,40);
             Label("玩家",305,230,370,34,smallStyle);
-            Label("命中得分",738,230,120,34,smallStyle); Label("被击中",901,230,110,34,smallStyle);
+            Label("本回合得分",738,230,120,34,smallStyle); Label("被击中",901,230,110,34,smallStyle);
             var ranked=Room.seats.Select((seat,index)=>new {seat,index}).Where(x=>x.seat.kind!=DodgeSeatKind.Empty).OrderByDescending(x=>x.seat.score).ToArray();
             for(int i=0;i<ranked.Length;i++)
             {
                 var row=ranked[i]; float y=278+i*48;
-                Label((i+1)+"   "+row.seat.name+(row.seat.team==0?" · 薄荷":" · 蜜桃")+(row.index==LocalSlot?"（你）":""),288,y,420,38);
+                Label((i+1)+"   "+row.seat.name+" · "+DodgeColleges.Name(row.seat.team)+(row.index==LocalSlot?"（你）":""),288,y,420,38);
                 Label(row.seat.score.ToString(),785,y,100,38); Label(row.seat.hits.ToString(),938,y,80,38);
             }
-            if(IsHost) { if(Button("返回大厅 · 再来一局",277,553,468,59,true)) BackToLobby(); }
-            else Label("等房主返回大厅，准备下一局。",277,558,470,55,smallStyle);
-            if(Button("离开房间",766,553,234,59)) ReturnHome("");
-            Footer("胜负之外，记住刚才那个离谱的姿势。");
+            string tactics=DodgeTactics.ListNames(Room.seats[LocalSlot].tactics);
+            Label(tactics.Length>0?"你的战术    "+tactics:"去休息室免费选一张战术牌，和已学技能一起带入下回合。",277,517,720,36,smallStyle);
+            if(IsHost)
+            {
+                if(final || !bothTeams)
+                {
+                    if(Button(final?"回大厅 · 再开一场":"返回大厅补人",277,564,447,55,true)) BackToLobby();
+                }
+                else
+                {
+                    if(Button("全队去休息室",277,564,295,55,true)) ContinueSeries();
+                    if(Button("结束系列赛",585,564,180,55)) BackToLobby();
+                }
+            }
+            else Label(final?"等房主带大家回大厅。":"等房主带大家去休息室选战术。",277,567,460,50,smallStyle);
+            if(Button("离开房间",781,564,218,55)) ReturnHome("");
         }
         void PausePage()
         {
@@ -174,9 +202,9 @@ namespace SuperDodgeball
         void HelpPage()
         {
             Card(188,66,904,588); Label("把身体当成你的招牌动作",230,99,820,48,headingStyle);
-            string[,] controls = { {"移动 / 镜头","WASD / 鼠标"},{"瞄准蓄力 / 投球","按住右键 / 点击左键"},{"向左 / 向右侧弯","Q / E"},{"L 型弯腰 / O 型卷身","按住 Z / X"},{"飞扑","空格"},{"普通球 / 已有特殊武器","1 / 2"},{"使用携带道具","F"},{"更衣间内切换装扮","C / 用球砸衣柜"},{"暂停 / 返回","Esc"} };
-            for(int i=0;i<controls.GetLength(0);i++) {Label(controls[i,0],233,170+i*36,400,32);Label(controls[i,1],692,170+i*36,350,32,smallStyle);}
-            Label("大厅：走两侧选队，房主用球砸大屏选择规则与出发。休息间：投球领道具、选技能；全员走入本方半场后倒计时。比赛：命中对手为本队得分；用球先砸中礼盒领走道具。",233,505,815,64,smallStyle);
+            string[,] controls = { {"移动 / 镜头","WASD / 鼠标"},{"瞄准蓄力 / 投球","按住右键 / 点击左键"},{"向左 / 向右侧弯","Q / E"},{"L 型弯腰 / O 型卷身","按住 Z / X"},{"飞扑","空格"},{"普通球 / 已有特殊武器","1 / 2"},{"使用携带道具","F"},{"裁判摸鱼时起爆背心","R"},{"捡起 / 丢下武器","G / V"},{"更衣间内切换装扮","C / 用球砸衣柜"},{"暂停 / 返回","Esc"} };
+            for(int i=0;i<controls.GetLength(0);i++) {Label(controls[i,0],233,160+i*31,400,32);Label(controls[i,1],692,160+i*31,350,32,smallStyle);}
+            Label("大厅两侧选队，房主砸大屏出发。每场三回合，按胜场决胜。每回合休息室有两把免费武器，用队费买装备、投球选全队战术。缺弹时看台会抛来橙色弹药，靠近或用普通球击中就能补弹。用球打中道具可收进道具栏，技能卡走近就能学。",233,505,815,64,smallStyle);
             if(Button("明白了",799,582,247,49,true)) helpOpen=false;
         }
         void DestroyUi()

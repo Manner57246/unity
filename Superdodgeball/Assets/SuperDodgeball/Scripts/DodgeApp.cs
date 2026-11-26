@@ -17,15 +17,21 @@ namespace SuperDodgeball
         public int team = -1;
         public int outfit;
         public bool inCourt;
+        public int tactics, pick = -1;
+        public int[] offer;
     }
     [Serializable] public sealed class DodgeRoom
     {
         public string name = "软糖躲避球派对";
+        public int[] funds = new int[2];
+        public bool[] rerolled = new bool[2];
         public DodgeSeatInfo[] seats = new DodgeSeatInfo[5];
         public float duration = 180f;
         public int difficulty = 1;
+        public DodgeVenue venue = DodgeVenue.Tour;
         public bool crowd = true, drops = true;
-        public int round;
+        public int round; // Network epoch; increases even across rematches in the same room.
+        public int leg, mintWins, peachWins;
         public DodgeRoom() { for (int i = 0; i < 5; i++) seats[i] = new DodgeSeatInfo(); }
     }
 
@@ -51,6 +57,8 @@ namespace SuperDodgeball
         public DodgeClubhouse Clubhouse { get; private set; }
         public DodgeReferee Referee { get; private set; }
         public DodgeStadium Stadium {get;private set;}
+        public DodgeVenueDirector Venue {get;private set;}
+        public DodgeVenue CurrentVenue => Room.venue!=DodgeVenue.Tour?Room.venue:Room.leg==2?DodgeVenue.Flume:Room.leg==3?DodgeVenue.Gym:DodgeVenue.Warehouse;
         public float TimeLeft { get; private set; }
         public float Countdown { get; private set; }
         public DodgeNet Net { get; private set; }
@@ -62,6 +70,7 @@ namespace SuperDodgeball
         public string WinnerText { get; private set; }
         public bool Initialized => initialized;
         DodgeGame game;
+        DodgeHud hud;
         bool initialized, settingsOpen, helpOpen;
         Vector3[] homes;
         Quaternion[] rotations;
@@ -80,6 +89,7 @@ namespace SuperDodgeball
         IEnumerator Start()
         {
             game = FindFirstObjectByType<DodgeGame>(); Net = GetComponent<DodgeNet>();
+            hud = game.GetComponent<DodgeHud>();
             // Let every physical character finish building its skeleton first.
             yield return null;
             Actors = new DodgeActor[5]; Controllers = new DodgePlayer[5];
@@ -108,7 +118,12 @@ namespace SuperDodgeball
             Referee.Build(this, game);
             gameObject.AddComponent<DodgePartyEffects>();
             Stadium=FindFirstObjectByType<DodgeStadium>();
-            if(Stadium)Stadium.Initialize(this);
+            if(Stadium)
+            {
+                Stadium.Initialize(this);
+                Venue=gameObject.AddComponent<DodgeVenueDirector>();
+                Venue.Initialize(this);
+            }
             game.endlessPractice = true; game.practiceLauncher = false;
             ReturnHome("");
             ApplyAutomationArguments();
@@ -128,7 +143,7 @@ namespace SuperDodgeball
             UpdateClubhouse();
             if (Page == DodgePage.Countdown)
             {
-                if (!AllOnCourt) { Page = DodgePage.Staging; Countdown = 3f; Net.BroadcastLobby(); return; }
+                if (!AllOnCourt) { Page = DodgePage.Staging; Countdown = 3f; Clubhouse.SetPhase(Page); Net.BroadcastLobby(); return; }
                 if (SimulationRunning) Countdown = Mathf.Max(0f, Countdown - Time.deltaTime);
                 if (Countdown <= 0f) { Page = DodgePage.Playing; Clubhouse.SetPhase(Page); game.CaptureInput(); Net.BroadcastLobby(); }
             }
@@ -140,14 +155,25 @@ namespace SuperDodgeball
         }
 
         public int SeatOf(DodgeActor actor) => Actors == null ? -1 : Array.IndexOf(Actors, actor);
-        public void CreditHit(DodgeActor attacker, DodgeActor victim)
+        public void CreditHit(DodgeActor attacker, DodgeActor victim, bool bankShot = false)
         {
             if (IsClient || Page != DodgePage.Playing || !attacker || attacker == victim) return;
             int source = SeatOf(attacker), target = SeatOf(victim);
             if (source < 0 || target < 0 || Room.seats[source].kind == DodgeSeatKind.Empty || Room.seats[target].kind == DodgeSeatKind.Empty || SameTeam(attacker, victim)) return;
             attacker.Kit.Earn();
-            Room.seats[source].score++; Room.seats[target].hits++;
+            Room.seats[source].score += bankShot && HasTactic(attacker, DodgeTactic.BankShot) ? 2 : 1;
+            Room.seats[target].hits++;
+            PresentHit(Room.round, source, target);
+            Net.SendHit(source, target);
+            attacker.Kit.RewardSupply(DodgeTactic.TeaSponsor);
+            victim.Kit.RewardSupply(DodgeTactic.PocketDecoy);
             if(Stadium)Stadium.DrawScreens();
+        }
+
+        internal void PresentHit(int round, int source, int target)
+        {
+            if (!MatchRunning || round != Room.round || (LocalSlot != source && LocalSlot != target)) return;
+            if (target >= 0 && target < Actors.Length && hud) hud.ShowHit(target);
         }
 
         public bool CreateRoom(bool online)
@@ -212,10 +238,8 @@ namespace SuperDodgeball
         public bool StartMatch()
         {
             if (!CanStart) { Message = "走到左右两侧选队；双方至少一人，所有真人选队后由房主砸开始。"; return false; }
-            Room.round++; foreach (var seat in Room.seats) { seat.score = seat.hits = 0; }
-            TimeLeft = Room.duration; Countdown = 3f; Page = DodgePage.Staging; Paused = false; Message = "";
-            foreach(var seat in Room.seats) seat.inCourt = false;
-            ResetWorld(); ConfigureActors(); game.CaptureInput(); Net.BroadcastLobby();
+            ClearSeries();
+            BeginLeg(false);
             return true;
         }
 
@@ -223,16 +247,20 @@ namespace SuperDodgeball
         {
             if (IsClient || Page != DodgePage.Playing) return;
             Page = DodgePage.Results; Paused = false; game.UnlockInput(); game.ClearBalls();
+            int margin = TeamScore(0) - TeamScore(1);
+            if (margin > 0) Room.mintWins++;
+            if (margin < 0) Room.peachWins++;
             UpdateWinner(); if(Stadium)Stadium.DrawScreens(); Net.BroadcastLobby();
         }
         void UpdateWinner()
         {
             int blue = TeamScore(0), peach = TeamScore(1);
-            WinnerText = blue == peach ? "平局！下局再分高下" : (blue > peach ? "薄荷队" : "蜜桃队") + "赢了！";
+            WinnerText = blue == peach ? "本回合平局" : DodgeColleges.Name(blue>peach?0:1) + "赢了！";
         }
         public void BackToLobby()
         {
             if (!IsHost) return;
+            ClearSeries();
             Page = DodgePage.Lobby; Paused = false; settingsOpen = helpOpen = false;
             foreach(var seat in Room.seats) {seat.inCourt=false;seat.score=seat.hits=0;}
             InvalidateReady(); ResetWorld(); ConfigureActors(); game.CaptureInput(); Net.BroadcastLobby();
@@ -248,11 +276,11 @@ namespace SuperDodgeball
 
         public void ReceiveRoom(DodgeRoom room, DodgePage page, int localSlot, float left, float countdown)
         {
-            if (room == null || room.seats == null || room.seats.Length != 5 || localSlot < 1 || localSlot >= 5) throw new System.IO.InvalidDataException("Invalid room");
-            bool fresh = room.round != Room.round || (Page != page && (page == DodgePage.Staging || page == DodgePage.Lobby));
+            if (room == null || (uint)room.venue>(uint)DodgeVenue.Gym || room.seats == null || room.seats.Length != 5 || localSlot < 1 || localSlot >= 5) throw new System.IO.InvalidDataException("Invalid room");
+            bool fresh = room.round != Room.round || (Page != page && page == DodgePage.Lobby);
             bool entering = Page != page;
             Room = room; Page = page; LocalSlot = localSlot; TimeLeft = left; Countdown = countdown; Connecting = false; Message = "";
-            if (fresh) ResetWorld();
+            if (fresh) ResetWorld(page == DodgePage.Staging && room.leg > 1);
             ConfigureActors();
             if (entering)
             {
@@ -269,25 +297,27 @@ namespace SuperDodgeball
             if (value) game.UnlockInput(); else game.CaptureInput();
         }
 
-        void ResetWorld()
+        void ResetWorld(bool carryTraining = false)
         {
+            if (hud) hud.ClearHits();
             DodgeRestTarget.ResetBots();
             if (Referee) Referee.ResetRound();
             foreach (var actor in Actors) { actor.gameObject.SetActive(true); actor.Puppet.SetVisible(true); actor.Puppet.SetNetworkReplica(false); }
             game.player = Controllers[LocalSlot]; game.view.player = game.player;
             if(Stadium)Stadium.DrawScreens();
-            game.ResetRound();
+            game.ResetRound(carryTraining);
             for (int i = 0; i < 5; i++)
             {
-                Controllers[i].RemoteInput = default; Controllers[i].ResetPlayer(); Actors[i].ResetActor();
+                Controllers[i].RemoteInput = default; Controllers[i].ResetPlayer(); Actors[i].ResetActor(carryTraining);
                 var motor = Actors[i].GetComponent<CharacterController>(); motor.enabled = false;
                 Vector3 destination = Page == DodgePage.Lobby ? Clubhouse.LobbySpawn(i) : Page == DodgePage.Staging ? Clubhouse.RestSpawn(Room.seats[i].team,i) : homes[i];
                 float yaw = Page == DodgePage.Lobby ? 0f : Page == DodgePage.Staging ? (Room.seats[i].team == 1 ? 180f : 0f) : rotations[i].eulerAngles.y;
+                if (Drafting && Room.seats[i].kind == DodgeSeatKind.Human) yaw += 180f;
                 Actors[i].transform.SetPositionAndRotation(destination, Quaternion.Euler(0f,yaw,0f));
                 if(Actors[i].Puppet.Wardrobe) Actors[i].Puppet.Wardrobe.SetStyle(Room.seats[i].outfit);
                 Actors[i].Puppet.SnapToPose();
             }
-            game.view.SetView(Actors[LocalSlot].transform.eulerAngles.y, 9f);
+            game.view.SetView(Actors[LocalSlot].transform.eulerAngles.y, Drafting ? 0f : 9f);
             // The match clock is owned by the application; this marks world objects as pausable.
             game.CaptureInput(); game.UnlockInput();
         }
@@ -304,7 +334,11 @@ namespace SuperDodgeball
                 actor.gameObject.SetActive(occupied); actor.Puppet.SetVisible(occupied);
                 actor.isPlayer = i == LocalSlot; actor.animatedTarget = false;
                 actor.Puppet.SetNetworkReplica(IsClient);
-                if(!menu && actor.Puppet.Wardrobe) actor.Puppet.Wardrobe.SetStyle(Room.seats[i].outfit);
+                if(!menu && actor.Puppet.Wardrobe)
+                {
+                    actor.Puppet.Wardrobe.SetCollege(Room.seats[i].team,i);
+                    actor.Puppet.Wardrobe.SetStyle(Room.seats[i].outfit);
+                }
                 controller.Replica = IsClient; controller.RemoteControlled = !IsClient && i != LocalSlot;
                 controller.enabled = occupied && !IsClient && !menu && Room.seats[i].kind == DodgeSeatKind.Human;
                 actor.GetComponent<CharacterController>().enabled = occupied && !IsClient;

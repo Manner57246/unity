@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEditor;
 namespace SuperDodgeball.Editor
 {
-    public sealed class DodgePartyChecks:MonoBehaviour
+    public sealed partial class DodgePartyChecks:MonoBehaviour
     {
         [Serializable] sealed class Report{public bool passed;public List<string> checks=new List<string>();public string failure;}
         readonly Report report=new Report();DodgeApp App=>DodgeApp.Instance;DodgeActor A=>App.Actors[0];DodgeActor B=>App.Actors[1];
@@ -34,18 +34,11 @@ namespace SuperDodgeball.Editor
         {
             while(!App.Initialized)yield return null;App.ReturnHome("");App.BeginParty();App.ChooseSide(0,0);App.Room.crowd=App.Room.drops=false;Check(App.StartMatch(),"Start a complete team match");
             yield return new WaitForSeconds(.15f);
-            Check(A.Kit.Points==1 && A.Kit.Skills==0,"Each match begins with one unspent skill point");
-            var skill=FindObjectsByType<DodgeRestTarget>(FindObjectsSortMode.None).First(t=>t.Team==0 && t.Skill==(int)DodgeSkill.QuickPitch);
-            var from=skill.transform.position+Vector3.forward*.7f;
-            DodgeBall.Spawn(from,Vector3.back*12,A,false,DodgeGame.Instance.ballMaterial);
+            Check(A.Kit.Skills==0 && DodgePartyEffects.Instance.LooseCount==4,"Changing rooms hold four free weapons and no pre-learned skills");
+            var shelf=FindObjectsByType<DodgeRestTarget>(FindObjectsSortMode.None).First(t=>t.Team==0 && t.Item==DodgeItem.ThunderPill);
+            DodgeBall.Spawn(shelf.transform.position-shelf.transform.forward*.7f,shelf.transform.forward*12,A,false,DodgeGame.Instance.ballMaterial);
             yield return new WaitForSeconds(.15f);
-            Check(A.Kit.Has(DodgeSkill.QuickPitch) && A.Kit.Points==0,"A real ball buys a rest-room skill once");
-            Check(!A.Kit.Upgrade(DodgeSkill.QuickPitch),"Duplicate skill cannot consume a point");
-            var itemTarget=FindObjectsByType<DodgeRestTarget>(FindObjectsSortMode.None).First(t=>t.Team==0 && t.Item==DodgeItem.Banana);
-            DodgeBall.Spawn(itemTarget.transform.position+Vector3.forward*.6f,Vector3.back*12,A,false,DodgeGame.Instance.ballMaterial);
-            yield return new WaitForSeconds(.15f);
-            Check(A.Kit.Item==DodgeItem.Banana && A.Kit.StarterClaimed,"A real ball claims a carried starter item");
-            Check(!A.Kit.ClaimStarter(DodgeItem.Tea),"Starter counter cannot provide unlimited items");
+            Check(A.Kit.Item==DodgeItem.ThunderPill && App.Room.funds[0]==4,"A physical shot buys the pill with two team coins");
             for(int i=0;i<5;i++)App.PlaceActor(i,App.Clubhouse.CourtSpawn(App.Room.seats[i].team,i),0);
             yield return new WaitForSeconds(3.3f);
             Check(App.Page==DodgePage.Playing,"All players enter court before effects can be used");
@@ -54,7 +47,7 @@ namespace SuperDodgeball.Editor
             foreach(var weapon in new[]{DodgeWeapon.Bat,DodgeWeapon.Hammer})
             {
                 Clean();yield return new WaitForSeconds(.12f);int hits=B.HitCount;
-                A.Arsenal.Equip(weapon);Check(A.Arsenal.ConsumeAttack()==weapon && A.Arsenal.Charges==2,weapon+" consumes exactly one charge");
+                A.Arsenal.Equip(weapon);Check(A.Arsenal.ConsumeAttack()==weapon && A.Arsenal.Charges==3,weapon+" can be used repeatedly");
                 DodgeCombat.Release(A,weapon,A.HandPosition,B.transform.position,Vector3.zero,1,false,B);
                 Check(B.HitCount==hits+1 && B.IsStunned,weapon+" strikes real body colliders and scores");
                 if(weapon==DodgeWeapon.Hammer)Check(B.Kit.Flat>0,"Hammer applies temporary flattening");
@@ -66,8 +59,8 @@ namespace SuperDodgeball.Editor
             DodgePartyEffects.Instance.Melee(A,DodgeWeapon.Bat,B.transform.position,1);Check(B.HitCount==0,"Melee cannot strike through a wall");Destroy(wall);yield return null;
             Clean();App.Room.seats[1].team=0;yield return new WaitForSeconds(.1f);DodgePartyEffects.Instance.Melee(A,DodgeWeapon.Hammer,B.transform.position,1);Check(B.HitCount==0,"Melee respects team rules");App.Room.seats[1].team=1;
             Clean();yield return new WaitForSeconds(.12f);
-            var glove=DodgeBall.Spawn(B.Puppet.BodyPath[3],Vector3.forward*22,A,false,DodgeGame.Instance.ballMaterial,DodgeWeapon.Glove);
-            yield return new WaitForSeconds(.1f);Check(B.HitCount==1 && !glove.IsDangerous,"Glove projectile hits once and becomes harmless");
+            var glove=DodgeBall.Spawn(B.Puppet.BodyPath[3],Vector3.forward*22,A,false,DodgeGame.Instance.ballMaterial,DodgeWeapon.Rocket);
+            yield return new WaitForSeconds(.1f);Check(B.HitCount==1 && (!glove || !glove.IsDangerous),"Rocket projectile hits once and becomes harmless");
             Clean();yield return new WaitForSeconds(.12f);
             A.Kit.BeginSwing(DodgeWeapon.Bat,new Vector3(0,1,8));var reflected=DodgeBall.Spawn(A.transform.position+Vector3.up*1.2f+Vector3.forward*1.6f,Vector3.back*20,B,true,DodgeGame.Instance.ballMaterial);
             yield return new WaitForSeconds(.08f);Check(reflected.owner==A && A.HitCount==0,"Active bat swing returns an incoming ball with new ownership");
@@ -102,10 +95,85 @@ namespace SuperDodgeball.Editor
             {
                 var drop=DodgeAirdrop.Spawn(DodgeGame.Instance,new Vector3(3,0,-5),DodgeWeapon.Standard,true,DodgeGiftKind.Item,item);DodgeBall.Spawn(drop.AimPosition,Vector3.forward,A,false,DodgeGame.Instance.ballMaterial);yield return new WaitForSeconds(.06f);Check(A.Kit.Item==item,"Owned ball claims "+item+" from a random gift");
             }
-            foreach(var weapon in new[]{DodgeWeapon.Bat,DodgeWeapon.Hammer,DodgeWeapon.Glove,DodgeWeapon.Bomb})
+            foreach(var weapon in new[]{DodgeWeapon.Bat,DodgeWeapon.Hammer,DodgeWeapon.Rocket,DodgeWeapon.Bomb})
             {
                 var drop=DodgeAirdrop.Spawn(DodgeGame.Instance,new Vector3(3,0,-5),weapon,true);DodgeBall.Spawn(drop.AimPosition,Vector3.forward,A,false,DodgeGame.Instance.ballMaterial);yield return new WaitForSeconds(.06f);Check(A.Arsenal.Weapon==weapon && A.Arsenal.Charges==3,"Owned ball claims "+weapon+" with three uses");
             }
+            var driver=App.Controllers[0];
+            var fx=DodgePartyEffects.Instance;
+            Clean();
+            typeof(DodgeReferee).GetProperty("Phase").SetValue(App.Referee,DodgeRefereePhase.Slacking,null);
+            driver.RemoteInput=new DodgeInput{aim=B.transform.position+Vector3.up};
+            A.Arsenal.Equip(DodgeWeapon.Bat,1);
+            yield return new WaitForSeconds(.14f);
+            driver.RemoteInput=new DodgeInput{aim=B.transform.position+Vector3.up,pressed=DodgeButtons.Fire};
+            yield return new WaitForSeconds(.07f);
+            var stick=A.Puppet.GetComponentsInChildren<Transform>(true).FirstOrDefault(t=>t.name=="Weapon Bat" && t.gameObject.activeInHierarchy);
+            // The puppet can be built under the court root rather than under the player.
+            if(!stick)stick=FindObjectsByType<Transform>(FindObjectsSortMode.None).First(t=>t.name=="Weapon Bat");
+            var windupAxis=stick.up;
+            Check(driver.VisualWeapon==DodgeWeapon.Bat && A.Kit.Swing>0 && B.HitCount==0,"Last bat charge starts a visible wind-up before contact");
+            yield return new WaitForSeconds(.19f);
+            Check(B.HitCount==1 && Vector3.Angle(windupAxis,stick.up)>48 && driver.VisualWeapon==DodgeWeapon.Bat,"Bat sweeps across the target, connects once and follows through");
+            yield return new WaitForSeconds(.55f);
+            Check(driver.VisualWeapon==DodgeWeapon.Standard,"Last bat charge returns to the ball only after the swing");
+            Clean();A.Arsenal.Equip(DodgeWeapon.Burst,1);
+            driver.RemoteInput=new DodgeInput{aim=new Vector3(0,3,12)};
+            yield return new WaitForSeconds(.08f);
+            int shots=driver.ShotsFired;
+            Check(driver.TryShoot() && driver.VisualWeapon==DodgeWeapon.Burst,"Last cannon charge keeps the weapon raised");
+            yield return new WaitForSeconds(.94f);
+            Check(driver.ShotsFired==shots+5 && A.Arsenal.Charges==0,"A single cannon trigger sends exactly five rounds");
+            Clean();
+            App.PlaceActor(0,new Vector3(-DodgeCourt.PlayWidth+.95f,.05f,-5.4f),0);
+            A.Arsenal.Equip(DodgeWeapon.Coil);
+            Check(fx.DropWeapon(A),"Physical coil released");
+            yield return new WaitForSeconds(.38f);
+            var loose=FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).First(b=>b.name=="落地 · 五吨钢卷");
+            App.PlaceActor(0,Vector3.ProjectOnPlane(loose.position,Vector3.up)+Vector3.up*.05f,0);
+            driver.RemoteInput=new DodgeInput{pressed=DodgeButtons.Collect,aim=Vector3.forward*8};
+            yield return new WaitForSeconds(.12f);
+            Check(A.Arsenal.Selected==DodgeWeapon.Coil && !fx.CollectWeapon(A),"G takes the dropped coil exactly once");
+            App.PlaceActor(0,new Vector3(0,.05f,-4),0);
+            DodgeBall.Spawn(B.Puppet.BodyPath[3],Vector3.forward*18,A,false,DodgeGame.Instance.ballMaterial,DodgeWeapon.Coil);
+            yield return new WaitForSeconds(.55f);
+            Check(B.HitCount==1 && B.Kit.Flat>5 && B.Kit.HeavySquash>.9f,"Heavy coil compresses its target and holds the pose");
+            yield return new WaitForSeconds(5.92f);
+            Check(B.Kit.Flat==0 && B.Kit.HeavySquash>0 && B.Kit.HeavySquash<1,"Coil target gradually springs back after its six-second hold");
+            yield return new WaitForSeconds(1.45f);
+            Check(B.Kit.FlatAmount==0,"Coil restores the original body proportions");
+            Clean();A.Arsenal.Equip(DodgeWeapon.Vest);
+            typeof(DodgeReferee).GetProperty("Phase").SetValue(App.Referee,DodgeRefereePhase.Watching,null);
+            Check(!A.Kit.TryPopVest() && A.Arsenal.WearingVest,"A watchful referee blocks the vest and preserves the charge");
+            typeof(DodgeReferee).GetProperty("Phase").SetValue(App.Referee,DodgeRefereePhase.Slacking,null);
+            App.PlaceActor(0,new Vector3(0,.05f,2),0);App.PlaceActor(1,new Vector3(0,.05f,4),180);
+            yield return new WaitForSeconds(.15f);
+            var before=B.Puppet.BodyCenter;
+            driver.RemoteInput=new DodgeInput{pressed=DodgeButtons.Detonate};
+            yield return new WaitForSeconds(.22f);
+            Check(A.Kit.ArmedTime>0 && !A.IsStunned && fx.Explosions==0,"Arming gives the wearer a live approach window before detonation");
+            var approach=A.transform.position;
+            driver.RemoteInput=new DodgeInput{move=Vector2.up,yaw=0,aim=B.transform.position+Vector3.up};
+            yield return new WaitForSeconds(.28f);
+            Check(A.transform.position.z>approach.z+.05f,"The wearer can run during the vest fuse");
+            driver.RemoteInput=default;
+            yield return new WaitForSeconds(.92f);
+            var costume=fx.Active.Single(e=>e.kind==DodgeEffect.VestBurst);
+            Check(B.HitCount==1 && A.HitCount==0 && A.IsStunned && A.Kit.ReturnTime>2 && !A.Arsenal.WearingVest,"R while the referee is slacking launches opponents and starts the wearer's recovery");
+            Check(costume.scatter && costume.scatter.GetComponentsInChildren<Rigidbody>().Length==0 && costume.scatter.GetComponentsInChildren<Collider>().Length==0,"Costume scatter is entirely cosmetic");
+            yield return new WaitForSeconds(.86f);
+            Check(A.transform.position.z< -6 && A.IsStunned && Vector3.Distance(before,B.Puppet.BodyCenter)>4,"Vest sends the wearer home and throws the opponent several metres");
+            yield return new WaitForSeconds(2.3f);
+            Check(!A.IsStunned && A.Kit.ReturnTime==0,"Vest recovery ends and the wearer regains control");
+            Clean();
+            DodgeCombat.Release(A,DodgeWeapon.Bomb,A.HandPosition,B.transform.position,Vector3.zero,1,false,B);
+            var thrown=fx.Active.Single(e=>e.kind==DodgeEffect.Bomb);
+            Check(Mathf.Approximately(thrown.left,3) && thrown.label.text=="03","Thrown timer starts at three seconds on the prop display");
+            yield return new WaitForSeconds(2.18f);
+            Check(thrown.label.text=="01" && fx.Explosions==0,"Timer remains live with one second displayed");
+            yield return new WaitForSeconds(1f);
+            Check(fx.Explosions==1,"Three-second fuse produces exactly one explosion");
+            var locker=LockerChecks();while(locker.MoveNext())yield return locker.Current;
             App.BackToLobby();Check(A.Kit.Skills==0 && A.Kit.Item==DodgeItem.None && DodgePartyEffects.Instance.ActiveCount==0,"Rematch clears match-local skills, items and effects");
         }
     }

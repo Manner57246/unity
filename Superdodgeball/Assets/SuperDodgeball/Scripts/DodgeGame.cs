@@ -31,6 +31,8 @@ namespace SuperDodgeball
         public bool crowdEnabled = true;
         public DodgeAirdrop ActiveDrop { get; private set; }
         float dropCountdown;
+        int supplyNumber;
+        DodgeCrowd supplyCrowd;
         public bool CapturedThisFrame { get; private set; }
         public int Score { get; private set; }
         public int Dodges { get; private set; }
@@ -109,10 +111,17 @@ namespace SuperDodgeball
             if (!MatchActive) { warningLine.enabled=false;return; }
             if (airdropsEnabled && RoundStarted && SimulationActive && !RoundOver && !ActiveDrop)
             {
-                dropCountdown -= Time.deltaTime;
-                if (dropCountdown <= 0f)
-                    SpawnAirdrop(new Vector3(Random.Range(-4.5f*DodgeCourt.Scale, 4.5f*DodgeCourt.Scale), 0f, Random.Range(-.5f*DodgeCourt.Scale, 2.5f*DodgeCourt.Scale)),
-                        (DodgeWeapon)Random.Range(1,7),false,Random.value<.33f?(DodgeItem)Random.Range(1,6):DodgeItem.None);
+                if (DodgeApp.Active)
+                {
+                    var app=DodgeApp.Instance;
+                    if (supplyNumber==0 && app.MatchRunning && app.TimeLeft<=app.Room.duration*.5f)
+                    {
+                        if(!supplyCrowd)supplyCrowd=FindFirstObjectByType<DodgeCrowd>();
+                        if(supplyCrowd && !supplyCrowd.Pending)supplyCrowd.ScheduleThrow(player.GetComponent<DodgeActor>(),DodgeCrowdThrow.Zeus);
+                    }
+                }
+                else if ((dropCountdown-=Time.deltaTime)<=0)
+                    SpawnAirdrop(new Vector3(Random.Range(-4.5f,4.5f),0,Random.Range(-2f,3f)),DodgeArsenal.RandomSupply());
             }
             bool fireActive = practiceLauncher && RoundStarted && SimulationActive && !RoundOver;
             warningLine.enabled = fireActive && LauncherCountdown <= 0.65f;
@@ -205,7 +214,7 @@ namespace SuperDodgeball
             NoticeUntil = Time.time + duration;
         }
 
-        public void ResetRound()
+        public void ResetRound(bool carryTraining = false)
         {
             if(DodgePartyEffects.Instance)DodgePartyEffects.Instance.ResetEffects();
             RoundNumber++;
@@ -213,7 +222,7 @@ namespace SuperDodgeball
             foreach (var drop in new List<DodgeAirdrop>(DodgeAirdrop.Active))
                 if (drop) { drop.gameObject.SetActive(false); Destroy(drop.gameObject); }
             foreach (var crowd in FindObjectsByType<DodgeCrowd>(FindObjectsSortMode.None)) crowd.ResetCrowd();
-            dropCountdown = 3f;
+            dropCountdown = 3f; supplyNumber = 0;
             ClearBalls();
             Score = Dodges = TimesHit = 0;
             SecondsLeft = 90f;
@@ -221,7 +230,7 @@ namespace SuperDodgeball
             shotLocked = false;
             nextLaunch = Time.time + 2f;
             player.ResetPlayer();
-            foreach (var actor in FindObjectsByType<DodgeActor>(FindObjectsSortMode.None)) actor.ResetActor();
+            foreach (var actor in FindObjectsByType<DodgeActor>(FindObjectsSortMode.None)) actor.ResetActor(carryTraining);
             foreach (var bot in FindObjectsByType<DodgeBot>(FindObjectsSortMode.None)) bot.ResetBrain();
             view.SetView(0f, 9f);
             Notice = "";
@@ -245,6 +254,11 @@ namespace SuperDodgeball
             dropCountdown = Random.Range(10f, 15f);
             PlayTone(600f, 0.16f, 0.09f);
             return ActiveDrop;
+        }
+
+        internal void RegisterThundercloud(DodgeAirdrop cloud)
+        {
+            ActiveDrop=cloud;supplyNumber++;
         }
 
         public void ClearAirdrop()

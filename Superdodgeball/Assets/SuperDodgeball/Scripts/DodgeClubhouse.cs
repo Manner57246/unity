@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace SuperDodgeball
 {
-    public enum DodgeLobbyAction { Start,AddBot,RemoveBot,Duration,Difficulty,Crowd,Drops,Host,Join,OutfitBody,OutfitHat,OutfitSuit }
+    public enum DodgeLobbyAction { Start,AddBot,RemoveBot,Duration,Difficulty,Crowd,Drops,Host,Join,OutfitBody,OutfitHat,OutfitSuit,Venue }
 
     // These are actual ball targets. No raycast-to-menu shortcut is used.
     public sealed class DodgeLobbyTarget : MonoBehaviour
@@ -26,7 +26,7 @@ namespace SuperDodgeball
         }
     }
 
-    public sealed class DodgeClubhouse : MonoBehaviour
+    public sealed partial class DodgeClubhouse : MonoBehaviour
     {
         DodgeApp app;DodgeGame game;
         GameObject lobby,rooms;
@@ -37,20 +37,37 @@ namespace SuperDodgeball
         readonly List<Material> materials=new List<Material>();
         readonly Dictionary<DodgeLobbyAction,DodgeLobbyTarget> targets=new Dictionary<DodgeLobbyAction,DodgeLobbyTarget>();
         TextMesh boardStatus,blueRoster,redRoster,blueRest,redRest,blueCourt,redCourt;
+        readonly GameObject[] trainingWalls=new GameObject[2], draftWalls=new GameObject[2];
+        readonly TextMesh[,] rarityLabels=new TextMesh[2,3];
+        readonly TextMesh[,] draftNames=new TextMesh[2,3], draftDetails=new TextMesh[2,3];
+        static readonly Color draftInk=new Color(.018f,.03f,.035f);
+        readonly TextMesh[] draftHeaders=new TextMesh[2];
         GameObject[] gates=new GameObject[2];
         Collider[] originalBumpers; Renderer[] originalBumperRenderers;
         public const float LobbyZ=-49f;
         public Vector3 LobbySpawn(int slot)
         {
             int team=app.Room.seats[slot].team;
-            if(app.Room.seats[slot].kind==DodgeSeatKind.Bot && team>=0)return new Vector3(team==0?-8.5f:8.5f,.05f,LobbyZ+1.8f+(slot%3)*1.3f);
-            return new Vector3((slot-2)*1.65f,.05f,LobbyZ-5f);
+            if(app.Room.seats[slot].kind==DodgeSeatKind.Bot && team>=0)
+            {
+                int queue=0;
+                for(int i=0;i<slot;i++)
+                    if(app.Room.seats[i].kind==DodgeSeatKind.Bot && app.Room.seats[i].team==team)queue++;
+                return new Vector3(team==0?-12.3f:12.3f,.05f,LobbyZ-2.20f+queue*1.46f);
+            }
+            int lane = (slot+1)/2;
+            return new Vector3((slot%2==1?-1:1)*lane*1.65f,.05f,LobbyZ-5f);
         }
         public Vector3 RestSpawn(int team,int slot)
         {
             bool bot=app.Room.seats[slot].kind==DodgeSeatKind.Bot;
             int rank=app.Room.seats.Take(slot).Count(s=>s.team==team && s.kind==app.Room.seats[slot].kind);
             float sign=team==1?1f:-1f;
+            if(!bot && app.Drafting)
+            {
+                int people=app.Room.seats.Count(s=>s.team==team && s.kind==DodgeSeatKind.Human);
+                return new Vector3((rank-(people-1)*.5f)*1.85f,.05f,sign*DodgeCourt.RestZ(23.65f));
+            }
             // Waiting bots stand beside the benches, leaving the central route clear.
             return bot?new Vector3(rank%2==0?-3.2f:3.2f,.05f,sign*DodgeCourt.RestZ(21.5f+(rank/2)*1.8f))
                 :new Vector3((rank-1)*2f,.05f,sign*DodgeCourt.RestZ(22.3f));
@@ -69,7 +86,7 @@ namespace SuperDodgeball
             Font.textureRebuilt+=RefreshFont;
             foreach(var text in Object.FindObjectsByType<TextMesh>(FindObjectsSortMode.None))
                 if(text.font)text.GetComponent<Renderer>().sharedMaterial=WorldFont(text.font);
-            font=Font.CreateDynamicFontFromOSFont(new[]{"Microsoft YaHei","Microsoft YaHei UI","Arial"},64);
+            font=DodgeApp.CreateUiFont(64);
             ink=Mat(new Color(.17f,.25f,.29f));cream=Mat(new Color(1f,.96f,.85f));
             mint=Mat(new Color(.42f,.8f,.77f));peach=Mat(new Color(.97f,.66f,.49f));
             lilac=Mat(new Color(.77f,.73f,.88f));dark=Mat(new Color(.23f,.35f,.41f));
@@ -116,62 +133,13 @@ namespace SuperDodgeball
         {
             Part("Soft column",parent,p,new Vector3(.65f,3.5f,.65f),material,true,PrimitiveType.Capsule);
         }
-        void BuildLobby()
-        {
-            var root=lobby.transform;root.position=new Vector3(0,0,LobbyZ);
-            Part("Clubhouse foundation",root,new Vector3(0,-.45f,-1),new Vector3(33,.8f,30),lilac);
-            Part("Clubhouse floor",root,new Vector3(0,-.06f,-1),new Vector3(30,.12f,27),floor,true);
-            Part("Back wall",root,new Vector3(0,2.4f,10),new Vector3(30,5,.4f),cream,true);
-            Part("Left wall",root,new Vector3(-15,1.6f,-1),new Vector3(.4f,3.4f,27),cream,true);
-            Part("Right wall",root,new Vector3(15,1.6f,-1),new Vector3(.4f,3.4f,27),cream,true);
-            Part("Entrance bumper",root,new Vector3(0,.6f,-14.4f),new Vector3(30,1.3f,.45f),lilac,true);
-            Part("Giant party screen",root,new Vector3(0,3.5f,8.9f),new Vector3(17.4f,6.5f,.5f),dark,true);
-            Text("Board title",root,new Vector3(0,5.92f,8.6f),"PARTY CLUB  /  用球选玩法",.115f,Color.white);
-            boardStatus=Text("Board rules and instructions",root,new Vector3(0,4.92f,8.57f),"",.065f,Color.white);
-            AddTarget(root,DodgeLobbyAction.Start,new Vector3(-5.3f,3.4f,8.5f),new Vector2(4.35f,1.4f),peach,"前往休息间");
-            AddTarget(root,DodgeLobbyAction.AddBot,new Vector3(-.2f,3.7f,8.5f),new Vector2(3.9f,.8f),mint,"+ 人机");
-            AddTarget(root,DodgeLobbyAction.RemoveBot,new Vector3(4.5f,3.7f,8.5f),new Vector2(3.9f,.8f),lilac,"- 人机");
-            AddTarget(root,DodgeLobbyAction.Duration,new Vector3(-.2f,2.65f,8.5f),new Vector2(3.9f,.8f),cream,"");
-            AddTarget(root,DodgeLobbyAction.Difficulty,new Vector3(4.5f,2.65f,8.5f),new Vector2(3.9f,.8f),cream,"");
-            AddTarget(root,DodgeLobbyAction.Crowd,new Vector3(-3.1f,1.5f,8.5f),new Vector2(5.9f,.8f),cream,"");
-            AddTarget(root,DodgeLobbyAction.Drops,new Vector3(3.5f,1.5f,8.5f),new Vector2(5.9f,.8f),cream,"");
-            Text("Board how to throw",root,new Vector3(0,.5f,8.5f),"按住右键瞄准 · 左键投球 · 房主砸屏幕选规则",.056f,Color.white);
-            for(int team=0;team<2;team++)
-            {
-                float x=team==0?-9f:9f;var color=team==0?mint:peach;
-                Part("Walk here to choose a side",root,new Vector3(x,.018f,0),new Vector3(7,.03f,6.5f),color);
-                Part("Team roster board",root,new Vector3(x,2.2f,4.7f),new Vector3(4.7f,3.1f,.2f),cream,true);
-                Text("Team name",root,new Vector3(x,3.25f,4.53f),team==0?"薄荷队":"蜜桃队",.13f,ink.color);
-                var roster=Text("Selected team members",root,new Vector3(x,2.13f,4.5f),"",.078f,ink.color);
-                if(team==0)blueRoster=roster;else redRoster=roster;
-                Text("Choose side sign",root,new Vector3(x,.84f,4.5f),"走到这边，就加入这队",.067f,ink.color);
-                Pillar(root,new Vector3(x-3.2f,1.5f,4.7f),color);Pillar(root,new Vector3(x+3.2f,1.5f,4.7f),color);
-            }
-            // A small dressing nook with three ball-selectable outfits.
-            Part("Dressing room rug",root,new Vector3(-11.4f,.025f,-8.3f),new Vector3(6.7f,.04f,7.2f),lilac);
-            Part("Dressing room back",root,new Vector3(-11.5f,1.8f,-11.8f),new Vector3(6.5f,3.6f,.25f),cream,true);
-            Text("Wardrobe entrance sign",root,new Vector3(-11.4f,3.65f,-5.25f),"更衣间",.16f,ink.color);
-            for(int i=0;i<3;i++)
-            {
-                var pos=new Vector3(-13.5f+i*2f,1.55f,-11.55f);
-                AddTarget(root,(DodgeLobbyAction)((int)DodgeLobbyAction.OutfitBody+i),pos,new Vector2(1.8f,1.2f),i==0?mint:i==1?peach:lilac,new[]{"轻装","帽子","运动套装"}[i],180f);
-                Part("Wardrobe hanger",root,new Vector3(pos.x,2.6f,-11.5f),Vector3.one*.35f,white,false,PrimitiveType.Sphere);
-            }
-            Text("Wardrobe instruction",root,new Vector3(-11.5f,.55f,-11.5f),"走进来，用球砸衣柜试穿",.05f,ink.color,180f);
-            // Networking uses the same physical targets; only the IP form accepts typing.
-            Part("Friends corner rug",root,new Vector3(10.7f,.025f,-8.2f),new Vector3(8,.04f,6.8f),mint);
-            Part("Friends terminal",root,new Vector3(10.7f,2,-11.8f),new Vector3(7.5f,4,.3f),cream,true);
-            Text("Friends sign",root,new Vector3(10.7f,3.3f,-11.55f),"叫上朋友",.13f,ink.color,180f);
-            AddTarget(root,DodgeLobbyAction.Host,new Vector3(8.8f,1.9f,-11.5f),new Vector2(3.25f,1.25f),peach,"开放房间",180f);
-            AddTarget(root,DodgeLobbyAction.Join,new Vector3(12.5f,1.9f,-11.5f),new Vector2(3.25f,1.25f),lilac,"加入朋友",180f);
-            Text("Friends instruction",root,new Vector3(10.7f,.65f,-11.5f),"用球砸按钮 · Esc 修改名字与端口",.05f,ink.color,180f);
-            for(int i=0;i<7;i++)Part("Floor wayfinding",root,new Vector3(0,.013f,-7+i*1.8f),new Vector3(.09f,.015f,.6f),white);
-        }
         void AddTarget(Transform root,DodgeLobbyAction action,Vector3 position,Vector2 size,Material material,string label,float yaw=0)
         {
+            float front=yaw==0?-1f:1f;
+            Part("Enamel plate rim",root,position-Vector3.forward*front*.058f,new Vector3(size.x+.105f,size.y+.095f,.18f),RoomFinish(Rail));
             var part=Part("Ball menu - "+action,root,position,new Vector3(size.x,size.y,.22f),material,true);
             var target=part.gameObject.AddComponent<DodgeLobbyTarget>();target.Action=action;
-            target.Label=Text("Option label - "+action,root,position+Vector3.forward*(yaw==0?-.14f:.14f),label,.085f,ink.color,yaw);
+            target.Label=Text("Option label - "+action,root,position+Vector3.forward*(yaw==0?-.14f:.14f),label,action==DodgeLobbyAction.Start?.107f:.080f,draftInk,yaw);
             targets.Add(action,target);
         }
         void BuildRooms()
@@ -184,28 +152,57 @@ namespace SuperDodgeball
                 float sign=team==0?-1:1;
                 var root=new GameObject("Team rest room "+team).transform;root.SetParent(roomsRoot,false);root.localPosition=Vector3.forward*sign*DodgeCourt.RoomOffset;
                 var c=team==0?mint:peach;float yaw=team==0?180f:0f;
-                Part("Rest room floor",root,new Vector3(0,-.06f,sign*21),new Vector3(12,.12f,12),floor,true);
+                Part("Rest room floor",root,new Vector3(0,-.06f,sign*21),new Vector3(2*DodgeCourt.RestHalfWidth,.12f,12),floor,true);
                 Part("Court entrance walkway",root,new Vector3(0,-.06f,sign*15),new Vector3(4,.12f,5),c,true);
-                Part("Rest room far wall",root,new Vector3(0,2,sign*26.9f),new Vector3(12,4,.3f),cream,true);
-                Part("Rest room left wall",root,new Vector3(-6,1.7f,sign*21),new Vector3(.3f,3.4f,12),cream,true);
-                Part("Rest room right wall",root,new Vector3(6,1.7f,sign*21),new Vector3(.3f,3.4f,12),cream,true);
+                Part("Rest room far wall",root,new Vector3(0,2,sign*26.9f),new Vector3(2*DodgeCourt.RestHalfWidth,4,.3f),cream,true);
+                Part("Rest room left wall",root,new Vector3(-DodgeCourt.RestHalfWidth,1.7f,sign*21),new Vector3(.3f,3.4f,12),cream,true);
+                Part("Rest room right wall",root,new Vector3(DodgeCourt.RestHalfWidth,1.7f,sign*21),new Vector3(.3f,3.4f,12),cream,true);
                 for(int side=-1;side<=1;side+=2)
                 {
                     Part("End bumper with doorway",root,new Vector3(side*8.3375f,.5f,sign*14.5f),new Vector3(12.275f,1.1f,.7f),peach,true);
-                    Part("Rest room doorway wall",root,new Vector3(side*4.2f,1.6f,sign*17.2f),new Vector3(3.6f,3.2f,.25f),cream,true);
+                    Part("Rest room doorway wall",root,new Vector3(side*(4.2f+DodgeCourt.RestSideExtension*.5f),1.6f,sign*17.2f),new Vector3(3.6f+DodgeCourt.RestSideExtension,3.2f,.25f),cream,true);
                     Pillar(root,new Vector3(side*2.25f,1.6f,sign*17.2f),c);
-                    Part("Rest room bench",root,new Vector3(side*4.4f,.55f,sign*21),new Vector3(1.2f,.35f,3.5f),c,true);
-                    for(int k=0;k<2;k++)Part("Bench legs",root,new Vector3(side*4.4f,.2f,sign*(20+k*2)),new Vector3(.7f,.4f,.3f),cream);
+
                 }
+                FurnishRestRoom(root,team,sign);
                 Part("Doorway arch",root,new Vector3(0,3.15f,sign*17.2f),new Vector3(5.2f,.5f,.65f),c,true);
-                Text("Court doorway sign",root,new Vector3(0,3.65f,sign*17.72f),"走进球场 →",.1f,ink.color,team==0?0f:180f);
-                Text("Rest room title",root,new Vector3(0,4.65f,sign*26.65f),(team==0?"薄荷队":"蜜桃队")+" · 休息间",.10f,ink.color,yaw);
-                var status=Text("Rest room readiness",root,new Vector3(0,4.15f,sign*18.4f),"",.055f,ink.color,team==0?0f:180f);
+                Text("Court doorway sign",root,new Vector3(0,3.22f,sign*17.55f),"球  场",.064f,Color.white,team==0?0f:180f);
+                Text("Rest room title",root,new Vector3(0,4.65f,sign*26.65f),(DodgeColleges.Name(team))+" · 休息间",.10f,draftInk,yaw);
+                Part("Doorway noticeboard",root,new Vector3(0,3.88f,sign*17.81f),new Vector3(4.50f,.54f,.09f),dark);
+                var status=Text("Rest room readiness",root,new Vector3(0,3.88f,sign*17.88f),"",.042f,Color.white,team==0?0f:180f);
                 if(team==0)blueRest=status;else redRest=status;
-                DodgeRestTarget.Build(this,root,team);
+                trainingWalls[team]=new GameObject("Training signs");
+                trainingWalls[team].transform.SetParent(root,false);
+                BuildEquipmentBoard(root,trainingWalls[team].transform,team);
+                BuildDraftWall(root,team,sign,yaw);
                 var court=Text("Court countdown sign",root,new Vector3(0,3.2f,sign*14.75f),"",.12f,ink.color,yaw);
                 if(team==0)blueCourt=court;else redCourt=court;
                 gates[team]=Part("Closed during match",root,new Vector3(0,1.6f,sign*14.5f),new Vector3(4.4f,3.2f,.5f),c,true).gameObject;
+            }
+        }
+        void ShowTrainingWalls()
+        {
+            for(int team=0;team<2;team++)
+            {
+                bool drafting=app.Drafting;
+                trainingWalls[team].SetActive(!drafting);
+                draftWalls[team].SetActive(drafting);
+                if(!drafting)continue;
+                var seat=app.Room.seats[app.LocalSlot];
+                bool own=seat.team==team && seat.offer!=null && seat.offer.Length==3;
+                string prompt=!own?"球队战术":seat.pick<0?"瞄准墙牌，投球选一张":"已选「"+DodgeTactics.Names[seat.offer[seat.pick]]+"」 · 转身进球场";
+                draftHeaders[team].text="队费 "+app.Room.funds[team]+" 币  ·  "+prompt+(app.Room.rerolled[team]?" · 已刷新":"");
+                for(int i=0;i<3;i++)
+                {
+                    draftNames[team,i].text=own?DodgeTactics.Names[seat.offer[i]]:"战术牌";
+                    rarityLabels[team,i].text=own?DodgeTactics.Rarity[seat.offer[i]]:"";
+                    rarityLabels[team,i].color=own?DodgeTactics.Ink[seat.offer[i]]:draftInk;
+                    draftDetails[team,i].text=own?DodgeTactics.Details[seat.offer[i]]:"对方球队";
+                    for(int k=0;k<DodgeTactics.Names.Length;k++)
+                        tacticSketches[team,i,k].SetActive(own && seat.offer[i]==k);
+                    Color lettering=own && seat.pick==i ? new Color(.07f,.29f,.18f) : draftInk;
+                    draftNames[team,i].color=lettering;
+                }
             }
         }
         void OriginalBarriers(bool enabled)
@@ -222,32 +219,50 @@ namespace SuperDodgeball
             OriginalBarriers(page==DodgePage.Home || page==DodgePage.Join || page==DodgePage.Lobby);
             if(lobby)lobby.SetActive(page==DodgePage.Lobby || page==DodgePage.Join);
             if(rooms)rooms.SetActive(page!=DodgePage.Home && page!=DodgePage.Join && page!=DodgePage.Lobby);
+            ShowTrainingWalls();
             foreach(var gate in gates)if(gate)gate.SetActive(page==DodgePage.Results);
         }
         void Update()
         {
             if(!app || !app.Initialized)return;
             if(DodgeApp.BypassForChecks){OriginalBarriers(true);if(lobby)lobby.SetActive(false);if(rooms)rooms.SetActive(false);return;}
-            string[] names={"薄荷队","蜜桃队"};
             if(app.Page==DodgePage.Lobby)
             {
                 targets[DodgeLobbyAction.Duration].Label.text="时长  "+Mathf.RoundToInt(app.Room.duration/60f)+" 分钟";
                 targets[DodgeLobbyAction.Difficulty].Label.text="人机  "+new[]{"轻松","标准","热闹"}[app.Room.difficulty];
                 targets[DodgeLobbyAction.Crowd].Label.text="观众干扰  "+(app.Room.crowd?"开启":"关闭");
-                targets[DodgeLobbyAction.Drops].Label.text="武器空投  "+(app.Room.drops?"开启":"关闭");
+                targets[DodgeLobbyAction.Venue].Label.text="地图  "+DodgeVenueDirector.Title(app.Room.venue);
+                targets[DodgeLobbyAction.Drops].Label.text="雷云补给  "+(app.Room.drops?"开启":"关闭");
                 boardStatus.text=(app.Online?"房主地址 "+app.Net.LocalAddress+" : "+app.Net.Port:"自己的大厅 · 可以先和人机玩")+"\n"+
                     (string.IsNullOrEmpty(app.Message)?"走向两侧选队，更衣间在后方左侧":app.Message);
-                blueRoster.text=Roster(0);redRoster.text=Roster(1);
+                RefreshRoster(blueRoster,0);
+                RefreshRoster(redRoster,1);
+                int localTeam=app.Room.seats[app.LocalSlot].team;
+                if(indicatedTeam!=localTeam)
+                {
+                    indicatedTeam=localTeam;
+                    for(int i=0;i<2;i++)checkInLamps[i].sharedMaterial=RoomFinish(i==localTeam?Sun:Steel);
+                }
             }
             if(app.Page==DodgePage.Staging || app.Page==DodgePage.Countdown || app.Page==DodgePage.Playing)
             {
-                string status=app.Page==DodgePage.Playing?"比赛中！":app.Page==DodgePage.Countdown?"所有人已入场  "+Mathf.CeilToInt(app.Countdown):"走过门口进入本方半场\n双方全员入场后开始倒计时";
+                string status=app.Page==DodgePage.Playing?"比赛中！":app.Page==DodgePage.Countdown?"所有人已入场  "+Mathf.CeilToInt(app.Countdown):"全员进入本方半场后开赛";
+                if(app.Page==DodgePage.Staging)status=DodgeVenueDirector.Title(app.CurrentVenue)+" · "+status;
                 blueRest.text=status;redRest.text=status;
                 string count=app.Page==DodgePage.Countdown?Mathf.CeilToInt(app.Countdown).ToString():app.Page==DodgePage.Playing?"GO!":
                     "已入场 "+app.Room.seats.Count(s=>s.kind!=DodgeSeatKind.Empty && s.inCourt)+" / "+app.Room.seats.Count(s=>s.kind!=DodgeSeatKind.Empty);
                 blueCourt.text=count;redCourt.text=count;
             }
             app.PersistLocalOutfit();
+        }
+        void RefreshRoster(TextMesh label,int team)
+        {
+            string names=Roster(team);
+            if(label.text==names)return;
+            label.text=names;
+            label.characterSize=.061f;
+            var bounds=label.GetComponent<MeshRenderer>().localBounds;
+            label.characterSize*=Mathf.Min(1f,4.18f/Mathf.Max(.01f,bounds.size.x),1.59f/Mathf.Max(.01f,bounds.size.y));
         }
         string Roster(int team)
         {
@@ -259,6 +274,7 @@ namespace SuperDodgeball
             Font.textureRebuilt-=RefreshFont;
             if(lobby)Destroy(lobby);if(rooms)Destroy(rooms);
             foreach(var m in materials)if(m)Destroy(m);
+            foreach(var mesh in roomMeshes)if(mesh)Destroy(mesh);
             if(font)Destroy(font);
         }
     }

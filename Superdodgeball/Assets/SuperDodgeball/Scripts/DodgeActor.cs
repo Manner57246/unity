@@ -49,7 +49,7 @@ namespace SuperDodgeball
             if (puppet) puppet.SnapToPose();
         }
         bool replicaStunned;
-        public bool IsStunned => DodgeGame.IsReplica ? replicaStunned : puppet && puppet.IsStunned;
+        public bool IsStunned => (zeus && zeus.ShockLeft > 0) || Kit.ReturnTime>0 || (DodgeGame.IsReplica ? replicaStunned : puppet && puppet.IsStunned);
         public void ApplyReplicaHits(bool stunned, int hitCount)
         {
             if (hitCount > HitCount)
@@ -72,6 +72,8 @@ namespace SuperDodgeball
             replicaShots = value;
         }
         public DodgeRagdoll Puppet => puppet;
+        DodgeZeus zeus;
+        public DodgeZeus Zeus => zeus ? zeus : (zeus = GetComponent<DodgeZeus>() ?? gameObject.AddComponent<DodgeZeus>());
         DodgePartyKit kit;
         public DodgePartyKit Kit => kit ? kit : (kit = GetComponent<DodgePartyKit>() ?? gameObject.AddComponent<DodgePartyKit>());
         DodgeArsenal arsenal;
@@ -135,14 +137,16 @@ namespace SuperDodgeball
 
         void Update()
         {
+            float teamScale = DodgeApp.Active && DodgeApp.Instance.HasTactic(this,DodgeTactic.SmallTeam) ? .8f : 1f;
+            if (transform.localScale.x!=teamScale) transform.localScale=Vector3.one*teamScale;
             if (!isPlayer && animatedTarget)
                 desiredLean = Mathf.Sin(Time.time * 1.3f + targetPhase) * 0.88f;
-            Lean = Mathf.SmoothDamp(Lean, desiredLean, ref leanVelocity, Kit.Has(DodgeSkill.RubberWaist) ? .045f : .065f);
+            Lean = Mathf.SmoothDamp(Lean, desiredLean, ref leanVelocity, (Kit.Has(DodgeSkill.RubberWaist) ? .045f : .065f)*Kit.ResponseTime);
             DiveAmount = Mathf.MoveTowards(DiveAmount, desiredDive, Time.deltaTime * 9f);
             locomotion = Mathf.SmoothDamp(locomotion, desiredLocomotion, ref motionVelocity, 0.1f);
             charge = Mathf.Lerp(charge, desiredCharge, 1f - Mathf.Exp(-14f * Time.deltaTime));
             stride += Time.deltaTime * locomotion * 13.5f;
-            float blend = 1f - Mathf.Exp(-8f * Time.deltaTime);
+            float blend = 1f - Mathf.Exp(-8f * Time.deltaTime / Kit.ResponseTime);
             lShape = Mathf.Lerp(lShape, desiredL, blend);
             oShape = Mathf.Lerp(oShape, desiredO, blend);
             float throwTime = (Time.time - throwStarted)/throwScale;
@@ -159,7 +163,8 @@ namespace SuperDodgeball
             if (!upperBody) return;
             // Rotate above the hips: the real head/torso colliders move with the mesh.
             float now = Application.isPlaying ? Time.time : 0f;
-            float run = locomotion * (1f - DiveAmount);
+            float airborne=DodgeVenueDirector.InUpdraft?Mathf.SmoothStep(0,1,(transform.position.y-.15f)/2f):0;
+            float run = locomotion * (1f - DiveAmount)*(1-airborne);
             float step = Mathf.Sin(stride);
             float bounce = Mathf.Abs(Mathf.Sin(stride)) * run;
             float breathe = Mathf.Sin(now * 2.6f + targetPhase) * 0.012f;
@@ -190,20 +195,21 @@ namespace SuperDodgeball
                 20f + Lean * 32f + wind * 25f - DiveAmount * 9f);
             if(Kit.Swing>0 && DodgeCombat.IsMelee(Kit.SwingWeapon))
             {
-                float duration=Kit.SwingWeapon==DodgeWeapon.Hammer?.85f:.5f;
+                float duration=Kit.SwingWeapon==DodgeWeapon.Hammer?.85f:.54f;
                 float phase=1-Kit.Swing/duration;
-                rightArm.localRotation=Quaternion.Euler(Kit.SwingWeapon==DodgeWeapon.Hammer?Mathf.Lerp(-160,40,Mathf.SmoothStep(0,1,phase*2)): -65,Mathf.Lerp(-100,120,Mathf.SmoothStep(0,1,phase*2)),25);
+                rightArm.localRotation=Quaternion.Euler(Kit.SwingWeapon==DodgeWeapon.Hammer?Mathf.Lerp(-160,40,Mathf.SmoothStep(0,1,phase*2)): -65,Mathf.Lerp(82,-72,Mathf.SmoothStep(0,1,(phase-.13f)/.43f)),25);
             }
             if (leftForearm) leftForearm.localRotation = Quaternion.Euler(12f + wind * 30f + swing * 20f, 0f, 0f);
             if (rightForearm) rightForearm.localRotation = Quaternion.Euler(12f + wind * 58f - swing * 4f, 0f, 0f);
             SetLeg(leftLeg, -1f, step * run * 29f);
             SetLeg(rightLeg, 1f, -step * run * 29f);
-            if (leftLeg) leftLeg.localRotation *= Quaternion.Euler(-wind * 38f + swing * 10f, 0f, 0f);
-            if (rightLeg) rightLeg.localRotation *= Quaternion.Euler(wind * 8f - swing * 20f, 0f, 0f);
-            if (leftShin) leftShin.localRotation = Quaternion.Euler(5f + wind * 73f + DiveAmount * 29f, 0f, 0f);
+            if (leftLeg) leftLeg.localRotation *= Quaternion.Euler(airborne*(-27f+7f*Mathf.Sin(now*3+targetPhase))-wind * 38f + swing * 10f, 0f, 0f);
+            if (rightLeg) rightLeg.localRotation *= Quaternion.Euler(airborne*(17f-6f*Mathf.Sin(now*3+targetPhase))+wind * 8f - swing * 20f, 0f, 0f);
+            if (leftShin) leftShin.localRotation = Quaternion.Euler(5f + airborne*46f + wind * 73f + DiveAmount * 29f, 0f, 0f);
             if (rightShin) rightShin.localRotation = Quaternion.Euler(5f + swing * 38f + DiveAmount * 39f, 0f, 0f);
             if (head)
                 head.localRotation = Quaternion.Euler(wind * 13f - swing * 12f, -wind * 28f + swing * 20f, -Lean * 5f);
+            Kit.PoseConsumable(this);
             if (Spine)
             {
                 Spine.Pose(this, lShape, oShape);
@@ -220,9 +226,17 @@ namespace SuperDodgeball
                     rightForearm.localRotation = Quaternion.Slerp(rightForearm.localRotation, Quaternion.identity, oShape);
                 }
             }
+            if (zeus && zeus.Transformed && charge > 0 && ShapeAmount < .1f)
+            {
+                float lift = charge * (1-throwPulse);
+                rightArm.localRotation = Quaternion.Slerp(rightArm.localRotation, Quaternion.Euler(-150,-12,35),lift);
+                leftArm.localRotation = Quaternion.Slerp(leftArm.localRotation, Quaternion.Euler(-35,0,-62),lift);
+                rightLeg.localRotation *= Quaternion.Euler(-27*lift,0,0);
+                leftShin.localRotation *= Quaternion.Euler(26*lift,0,0);
+            }
             if (heldBall)
             {
-                heldBall.localScale = Vector3.one * (0.34f + charge * 0.055f);
+                heldBall.localScale = Vector3.one * (0.34f + charge * 0.055f) / transform.localScale.x;
                 heldBall.gameObject.SetActive(DodgeGame.IsReplica ? replicaHeldVisible : Time.time - releasedAt > 0.34f && DiveAmount < 0.3f && ShapeAmount < 0.1f && !IsStunned);
             }
         }
@@ -242,9 +256,11 @@ namespace SuperDodgeball
             if(DodgeApp.Active && DodgeApp.Instance.Initialized)
             {
                 int slot=DodgeApp.Instance.SeatOf(this);
-                if(slot>=0 && DodgeApp.Instance.Room.seats[slot].team>=0)
-                    color=Color.Lerp(DodgeApp.Instance.Room.seats[slot].team==0?new Color(.38f,.8f,.79f):new Color(.98f,.65f,.47f),Color.white,hitPulse);
+                if(slot>=0)
+                    color=Color.Lerp(DodgeColleges.Skin(slot),Color.white,hitPulse);
             }
+            if (zeus && zeus.Transformed) color = Color.Lerp(color, new Color(1f,.76f,.45f), .46f);
+            if (zeus && zeus.ShockLeft > 0) color = Color.Lerp(color, new Color(.56f,.82f,1f), .55f);
             if (isPlayer && Time.time < InvulnerableUntil && Mathf.Sin(Time.time * 35f) > 0)
                 color = Color.Lerp(color, Color.white, 0.65f);
             propertyBlock.SetColor(BaseColor, color);
@@ -253,7 +269,7 @@ namespace SuperDodgeball
             if (puppet) puppet.SetColor(propertyBlock);
         }
 
-        public bool ReceiveHit(Vector3 point, bool playerShot = true, Vector3 impulse = default, float launch = 0f)
+        public bool ReceiveHit(Vector3 point, bool playerShot = true, Vector3 impulse = default, float launch = 0f, float carry = 3f)
         {
             if (DodgeReferee.Restricted(this)) return false;
             if (Time.time < InvulnerableUntil) return false;
@@ -262,14 +278,15 @@ namespace SuperDodgeball
             InvulnerableUntil = Time.time + (human ? 0.8f : 0.16f);
             hitPulse = 1f;
             HitCount++;
-            if (puppet) puppet.Hit(point, impulse, launch);
+            if (puppet) puppet.Hit(point, impulse, launch, carry);
             DodgeGame.Instance?.RegisterHit(this, point, playerShot);
             return true;
         }
 
-        public void ResetActor()
+        public void ResetActor(bool carryTraining = false)
         {
-            Kit.ResetKit(DodgeApp.Active && DodgeApp.Instance.Page==DodgePage.Staging);
+            Zeus.ResetPower();
+            Kit.ResetKit(DodgeApp.Active && DodgeApp.Instance.Page==DodgePage.Staging, carryTraining);
             CrowdStatus.ResetStatus();
             Arsenal.ResetEquipment();
             InvulnerableUntil = 0f;

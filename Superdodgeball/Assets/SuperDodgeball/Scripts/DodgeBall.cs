@@ -24,7 +24,7 @@ namespace SuperDodgeball
         DodgeSpectator audienceSource;
         public bool Replica;
         public int NetworkId;
-        public float CollisionRadius => Weapon == DodgeWeapon.Bowling ? 0.265f : Radius;
+        public float CollisionRadius => Weapon == DodgeWeapon.Bowling ? 0.265f : Weapon==DodgeWeapon.Coil ? .39f : Radius;
         readonly HashSet<DodgeActor> nearDodges=new HashSet<DodgeActor>();
         bool countedDodge;
         bool tracksPlayerDodge;
@@ -32,10 +32,25 @@ namespace SuperDodgeball
         Vector3 spawnPoint;
         float lifetime = 6f;
         float squash;
-        bool settled;
+        bool settled, banked, usedSkip;
         TrailRenderer trail;
         readonly RaycastHit[] hits = new RaycastHit[64];
         readonly Collider[] overlaps = new Collider[32];
+
+        internal bool ThreatenedByHorn(DodgeActor defender)
+        {
+            if(Replica || !IsDangerous || IsEgg || Weapon!=DodgeWeapon.Standard || !owner || owner==defender || DodgeApp.Instance.SameTeam(owner,defender))return false;
+            var chest=defender.transform.position+Vector3.up;
+            var toChest=chest-transform.position;
+            return toChest.sqrMagnitude<=25f && Vector3.Dot(velocity,toChest)>0 && DodgePartyEffects.LineClear(transform.position,chest);
+        }
+
+        internal void BlowOff(DodgeActor defender)
+        {
+            IsDangerous=false;
+            velocity=(transform.position-defender.transform.position-Vector3.up).normalized*4f+Vector3.up*2f;
+            lifetime=Mathf.Min(lifetime,1f);
+        }
 
         public static DodgeBall Spawn(Vector3 origin, Vector3 speed, DodgeActor source, bool enemy, Material material,
             DodgeWeapon weapon = DodgeWeapon.Standard, DodgeActor intendedTarget = null)
@@ -50,6 +65,7 @@ namespace SuperDodgeball
             ball.GetComponent<Renderer>().sharedMaterial = material;
             var projectile = ball.AddComponent<DodgeBall>();
             projectile.Weapon = weapon;
+            if(source && DodgeCombat.IsLauncher(weapon))source.Kit.KickLauncher();
             ball.transform.localScale = Vector3.one * projectile.CollisionRadius * 2f;
             if (weapon != DodgeWeapon.Standard)
             {
@@ -58,7 +74,28 @@ namespace SuperDodgeball
                 DodgeWardrobe.Tint(ball.GetComponent<Renderer>(), weapon == DodgeWeapon.Bowling ? DodgeArsenal.BowlingColor : DodgeArsenal.BurstColor);
                 if (weapon == DodgeWeapon.Bowling) DodgeArsenal.AddFingerHoles(ball.transform, DodgeGame.Instance.popMaterial);
             }
-            if(weapon==DodgeWeapon.Glove){ball.GetComponent<Renderer>().enabled=false;DodgePartyVisuals.Glove(ball.transform,Vector3.zero,1.8f);}
+            if(weapon==DodgeWeapon.Rocket || weapon==DodgeWeapon.Coil)
+            {
+                ball.name=weapon==DodgeWeapon.Rocket?"Flying foam rocket":"Rolling steel coil";
+                ball.GetComponent<Renderer>().enabled=false;
+                var art=DodgeWeaponArt.Model(ball.transform,weapon==DodgeWeapon.Rocket?DodgeWeaponArt.Prop.Rocket:DodgeWeaponArt.Prop.Coil);
+                art.localScale=Vector3.one/(2*projectile.CollisionRadius);
+                if(weapon==DodgeWeapon.Rocket)
+                {
+                    if(speed.sqrMagnitude>.001f)ball.transform.rotation=Quaternion.LookRotation(speed);
+                    DodgeWeaponVfx.Emit(ball.transform,true);
+                }
+            }
+            if (weapon == DodgeWeapon.Thunderbolt)
+            {
+                ball.name = "Flying thunderbolt";
+                ball.GetComponent<Renderer>().enabled = false;
+                var bolt = DodgeWeaponArt.Model(ball.transform, DodgeWeaponArt.Prop.Thunderbolt);
+                bolt.localRotation = Quaternion.Euler(90,0,0);
+                bolt.localScale = Vector3.one / (2 * projectile.CollisionRadius);
+                if (speed.sqrMagnitude > .001f) ball.transform.rotation = Quaternion.LookRotation(speed);
+            }
+            if (weapon == DodgeWeapon.Thunderbolt) DodgeStorm.Trail(ball.transform);
             projectile.owner = source;
             projectile.hostile = enemy;
             projectile.tracksPlayerDodge = enemy && (!source || (intendedTarget && intendedTarget.isPlayer));
@@ -70,23 +107,28 @@ namespace SuperDodgeball
             var trail = ball.AddComponent<TrailRenderer>();
             projectile.trail = trail;
             trail.sharedMaterial = DodgeGame.Instance.trailMaterial;
-            trail.startColor = enemy ? new Color(1f, 0.3f, 0.16f, 0.85f) : new Color(1f, 0.87f, 0.35f, 0.8f);
-            trail.endColor = new Color(1f, 0.6f, 0.1f, 0f);
-            trail.startWidth = 0.17f;
+            trail.startColor = new Color(1f, .95f, .69f, .96f);
+            trail.endColor = new Color(1f, .47f, .12f, 0f);
+            trail.startWidth = 0.21f;
             trail.endWidth = 0.015f;
-            trail.time = 0.14f;
+            trail.time = 0.12f;
             trail.minVertexDistance = 0.08f;
             trail.numCapVertices = 3;
+            if (weapon == DodgeWeapon.Thunderbolt)
+            {
+                trail.startColor = DodgeStorm.Gold; trail.endColor = new Color(.38f,.65f,1,0);
+                trail.time = .105f;
+            }
             return projectile;
         }
 
         public void SetPower(float power)
         {
             Power = Mathf.Clamp01(power);
-            if (!trail) return;
-            trail.time = Mathf.Lerp(0.11f, 0.24f, Power);
-            trail.startWidth = Mathf.Lerp(0.12f, 0.2f, Power);
-            trail.startColor = Color.Lerp(new Color(1f, 0.82f, 0.62f), new Color(1f, 0.72f, 0.32f), Power);
+            if (!trail || Weapon == DodgeWeapon.Thunderbolt) return;
+            trail.time = Mathf.Lerp(0.10f, 0.16f, Power);
+            trail.startWidth = Mathf.Lerp(0.16f, 0.26f, Power);
+            trail.startColor = Color.Lerp(new Color(1f, .94f, .60f), new Color(1f, .99f, .82f), Power);
         }
 
         public static DodgeBall SpawnEgg(Vector3 origin, Vector3 velocity, DodgeActor target, DodgeSpectator sourceSpectator=null)
@@ -155,7 +197,7 @@ namespace SuperDodgeball
             float radius = CollisionRadius;
             transform.localScale = Vector3.Scale(Vector3.one * radius * 2f, new Vector3(1f + squash * 0.22f, 1f - squash * 0.28f, 1f + squash * 0.22f));
             if (IsEgg) transform.localScale = new Vector3(0.27f, 0.37f, 0.27f);
-            if(Weapon==DodgeWeapon.Glove && velocity.sqrMagnitude>.01f)transform.rotation=Quaternion.LookRotation(velocity);
+            if((Weapon==DodgeWeapon.Rocket || Weapon==DodgeWeapon.Thunderbolt) && velocity.sqrMagnitude>.01f)transform.rotation=Quaternion.LookRotation(velocity);
             if (settled) return;
             // Pose transforms are driven in Update, so synchronize before querying hitboxes.
             Physics.SyncTransforms();
@@ -196,7 +238,7 @@ namespace SuperDodgeball
             float remaining = Time.fixedDeltaTime;
             for (int step = 0; step < 4 && remaining > 0.0001f; step++)
             {
-                Vector3 acceleration = Vector3.down * Gravity;
+                Vector3 acceleration = Weapon==DodgeWeapon.Rocket || Weapon==DodgeWeapon.Thunderbolt ? Vector3.zero : Vector3.down * Gravity;
                 Vector3 next = position + velocity * remaining + acceleration * (0.5f * remaining * remaining);
                 Vector3 motion = next - position;
                 Vector3 clearEnd=next;
@@ -231,7 +273,7 @@ namespace SuperDodgeball
                 }
             }
             transform.position = position;
-            transform.Rotate(new Vector3(200f, 350f, 80f) * Time.fixedDeltaTime);
+            if(Weapon!=DodgeWeapon.Rocket && Weapon!=DodgeWeapon.Thunderbolt)transform.Rotate((Weapon==DodgeWeapon.Coil?Vector3.right*450:new Vector3(200f,350f,80f))*Time.fixedDeltaTime);
             if (tracksPlayerDodge && !countedDodge && Vector3.Dot(position - TargetSnapshot, initialDirection) > 0.8f)
             {
                 countedDodge = true;
@@ -243,14 +285,18 @@ namespace SuperDodgeball
         void HitSpectator(Vector3 point,DodgeSpectator spectator)
         {
             if(!IsDangerous)return;
+            if (Weapon == DodgeWeapon.Thunderbolt) { ThunderImpact(point, Vector3.up, null,spectator); return; }
             if(IsEgg){BreakEgg(point);return;}
-            float force=Weapon==DodgeWeapon.Bowling?5.2f:Weapon==DodgeWeapon.Glove?6.2f:Mathf.Lerp(2.4f,4.2f,Power);
-            spectator.Hit(point,velocity.normalized*force+Vector3.up*(Weapon==DodgeWeapon.Bowling?4.5f:Weapon==DodgeWeapon.Glove?3.2f:2.4f),owner);
+            if(Weapon==DodgeWeapon.Rocket){RocketBurst(point,null,spectator);return;}
+            float force=Weapon==DodgeWeapon.Bowling?5.2f:Mathf.Lerp(2.4f,4.2f,Power);
+            spectator.Hit(point,velocity.normalized*force+Vector3.up*(Weapon==DodgeWeapon.Bowling?4.5f:2.4f),owner);
             IsDangerous=false;countedDodge=true;velocity=-velocity*.25f+Vector3.up*2;lifetime=Mathf.Min(lifetime,1.5f);squash=1;
         }
         void HitBody(Vector3 point, DodgeActor actor)
         {
             if (!IsDangerous) return;
+            if (Weapon == DodgeWeapon.Thunderbolt) { ThunderImpact(point, Vector3.up, actor); return; }
+            if(Weapon==DodgeWeapon.Rocket){RocketBurst(point,actor,null);return;}
             if(DodgeApp.Active && !DodgeApp.Instance.CanHurt(owner,actor))
             { IsDangerous=false;velocity=-velocity*.2f+Vector3.up*1.5f;lifetime=Mathf.Min(lifetime,1f);return; }
             if (IsEgg)
@@ -260,9 +306,10 @@ namespace SuperDodgeball
                 BreakEgg(point);
                 return;
             }
-            bool launched = actor.ReceiveHit(point, owner && owner.isPlayer, velocity * (Weapon==DodgeWeapon.Glove?.55f:.23f) + Vector3.up * 1.2f,
-                Weapon == DodgeWeapon.Bowling ? 8.2f + Power * 0.8f : Weapon==DodgeWeapon.Glove?5.5f:0f);
-            if (launched && DodgeApp.Active) DodgeApp.Instance.CreditHit(owner, actor);
+            bool launched = actor.ReceiveHit(point, owner && owner.isPlayer, velocity * .23f + Vector3.up * 1.2f,
+                Weapon == DodgeWeapon.Bowling ? 9.2f + Power * 0.8f : 0f);
+            if (launched && Weapon==DodgeWeapon.Coil)actor.Kit.Flatten(true);
+            if (launched && DodgeApp.Active) DodgeApp.Instance.CreditHit(owner, actor, banked && Weapon == DodgeWeapon.Standard);
             var bot = actor.GetComponent<DodgeBot>();
             if (launched && bot) bot.RememberAttacker(owner);
             if (launched && Weapon == DodgeWeapon.Bowling)
@@ -279,10 +326,30 @@ namespace SuperDodgeball
             DodgeGame.Instance?.SpawnPop(point, hostile ? new Color(1f, 0.34f, 0.2f) : new Color(1f, 0.84f, 0.2f));
         }
 
+        void ThunderImpact(Vector3 point,Vector3 normal,DodgeActor target,DodgeSpectator fan=null)
+        {
+            if(!IsDangerous)return;
+            IsDangerous=false;enabled=false;
+            DodgePartyEffects.Instance.ThunderImpact(point,normal,owner,target,fan,Power);
+            Destroy(gameObject);
+        }
+
+        void RocketBurst(Vector3 point,DodgeActor target,DodgeSpectator fan)
+        {
+            if(!IsDangerous)return;
+            IsDangerous=false;enabled=false;
+            if(DodgePartyEffects.Instance)DodgePartyEffects.Instance.RocketImpact(point,owner,target,fan);
+            Destroy(gameObject);
+        }
+
         bool ClaimDrop(DodgeAirdrop drop)
         {
             if (IsEgg) return false;
             if (!drop.TryClaim(this)) return false;
+            if (Weapon == DodgeWeapon.Thunderbolt)
+            { ThunderImpact(drop.AimPosition,Vector3.up,null); return true; }
+            if (Weapon == DodgeWeapon.Rocket)
+            { RocketBurst(drop.AimPosition,null,null); return true; }
             IsDangerous = false;
             enabled = false;
             Destroy(gameObject);
@@ -301,7 +368,8 @@ namespace SuperDodgeball
                 Vector3 center=actor.transform.position+Vector3.up*1.2f,delta=to-from;
                 float t=delta.sqrMagnitude<.001f?0:Mathf.Clamp01(Vector3.Dot(center-from,delta)/delta.sqrMagnitude);
                 if(Vector3.Distance(center,from+delta*t)>1.65f || Vector3.Dot(velocity,center-from)<=0 || !DodgePartyEffects.LineClear(from,center))continue;
-                owner=actor;hostile=!actor.isPlayer;velocity=DodgeBall.SolveLaunchVelocity(from,actor.Kit.SwingAim,Mathf.Max(22,velocity.magnitude));initialDirection=velocity.normalized;countedDodge=true;
+                banked=false;usedSkip=false;owner=actor;hostile=!actor.isPlayer;velocity=Weapon==DodgeWeapon.Thunderbolt?(actor.Kit.SwingAim-from).normalized*Mathf.Max(23f,velocity.magnitude):Weapon==DodgeWeapon.Rocket?(actor.Kit.SwingAim-from).normalized*28f:SolveLaunchVelocity(from,actor.Kit.SwingAim,Mathf.Max(22,velocity.magnitude));
+                if((Weapon==DodgeWeapon.Rocket || Weapon==DodgeWeapon.Thunderbolt) && velocity.sqrMagnitude>.001f)transform.rotation=Quaternion.LookRotation(velocity);initialDirection=velocity.normalized;countedDodge=true;
                 DodgeGame.Instance.EmitFoam(from,velocity.normalized,6,1);return true;
             }
             return false;
@@ -330,8 +398,19 @@ namespace SuperDodgeball
         void Bounce(Vector3 point, Vector3 normal)
         {
             if (IsEgg) { BreakEgg(point); return; }
+            if (Weapon==DodgeWeapon.Thunderbolt && IsDangerous) { ThunderImpact(point, normal, null); return; }
+            if (Weapon==DodgeWeapon.Rocket && IsDangerous){RocketBurst(point+normal*.08f,null,null);return;}
             float impactSpeed = Mathf.Abs(Vector3.Dot(velocity, normal));
-            velocity = Vector3.Reflect(velocity, normal) * (normal.y > 0.6f ? 0.62f : 0.76f);
+            bool standard = IsDangerous && Weapon == DodgeWeapon.Standard && owner && DodgeApp.Active && DodgeApp.Instance.MatchRunning;
+            if (standard && Mathf.Abs(normal.y) < .35f) banked = true;
+            if (standard && !usedSkip && normal.y > .85f && impactSpeed > 1f &&
+                DodgeApp.Instance.HasTactic(owner, DodgeTactic.Skipper))
+            {
+                usedSkip = true;
+                velocity = Vector3.ProjectOnPlane(velocity, normal) * .97f + normal * 2.1f;
+                DodgeGame.Instance.EmitFoam(point, normal, 7, 1f);
+            }
+            else velocity = Vector3.Reflect(velocity, normal) * (normal.y > 0.6f ? 0.62f : 0.76f);
             BounceCount++;
             squash = Mathf.Clamp01(impactSpeed / 8f);
             if (BounceCount >= 3) IsDangerous = false;

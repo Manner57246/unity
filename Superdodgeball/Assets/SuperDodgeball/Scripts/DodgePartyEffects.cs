@@ -3,13 +3,13 @@ using System.IO;
 using UnityEngine;
 namespace SuperDodgeball
 {
-    public enum DodgeEffect { Banana, Decoy, Tea, Bomb, Burst }
-    public sealed class DodgePartyEffects : MonoBehaviour
+    public enum DodgeEffect { Banana, Decoy, Tea, Bomb, Burst, VestBurst, Thunderstrike, Refill, RocketBurst, HornWave }
+    public sealed partial class DodgePartyEffects : MonoBehaviour
     {
         public static DodgePartyEffects Instance { get; private set; }
         public sealed class Effect
         {
-            public int id,owner;public DodgeEffect kind;public Vector3 position,velocity;public float left,total;public Transform visual;public TextMesh label;
+            public int id,owner;public DodgeEffect kind;public Vector3 position,velocity;public float left,total;public Transform visual;internal Transform flash;public TextMesh label;internal DodgeCostumeScatter scatter;
         }
         readonly Dictionary<int,Effect> effects=new Dictionary<int,Effect>();
         readonly List<int> remove=new List<int>();int sequence;float clock;
@@ -18,7 +18,7 @@ namespace SuperDodgeball
         public IEnumerable<Effect> Active=>effects.Values;
         readonly RaycastHit[] hits=new RaycastHit[64];
         void Awake(){Instance=this;}
-        public void ResetEffects(){foreach(var e in effects.Values)if(e.visual)Destroy(e.visual.gameObject);effects.Clear();Explosions=0;clock=0;}
+        public void ResetEffects(){ClearWeapons();foreach(var e in effects.Values)if(e.visual)Destroy(e.visual.gameObject);effects.Clear();Explosions=0;clock=0;}
         public Effect Spawn(DodgeEffect kind,Vector3 point,Vector3 velocity,DodgeActor source,float seconds)
         {
             if(effects.Count>=48){int first=0;foreach(var key in effects.Keys){first=key;break;}Destroy(effects[first].visual.gameObject);effects.Remove(first);}
@@ -27,12 +27,30 @@ namespace SuperDodgeball
         }
         void Create(Effect e)
         {
-            var root=new GameObject("Party effect "+e.kind);e.visual=root.transform;
-            if(e.kind==DodgeEffect.Bomb){var model=DodgePartyVisuals.Weapon(e.visual,DodgeWeapon.Bomb);model.localScale=Vector3.one*.32f;}
-            else if(e.kind==DodgeEffect.Burst)
+            var root=new GameObject("Party effect "+e.kind);e.visual=root.transform;e.visual.position=e.position;
+            if (e.kind == DodgeEffect.Refill)
             {
+                DodgeWeaponArt.Model(e.visual,DodgeWeaponArt.Prop.FoamAmmo).localScale=Vector3.one*.42f;
+            }
+            else if(e.kind==DodgeEffect.HornWave)
+            {
+                DodgeFanGifts.Ring(e.visual,DodgePartyVisuals.Mint,1);
+                DodgeGame.Instance.PlayTone(315f,.22f,.12f);
+                DodgeGame.Instance.PlayTone(405f,.29f,.09f);
+            }
+            else if (e.kind == DodgeEffect.Thunderstrike) DodgeStorm.Impact(e.visual,e.velocity,e.total);
+            else if(e.kind==DodgeEffect.Bomb){var model=DodgePartyVisuals.Weapon(e.visual,DodgeWeapon.Bomb);model.localScale=Vector3.one*.39f;e.label=model.GetComponentInChildren<TextMesh>();}
+            else if(e.kind==DodgeEffect.Burst || e.kind==DodgeEffect.VestBurst || e.kind==DodgeEffect.RocketBurst)
+            {
+                DodgeWeaponVfx.Emit(e.visual,false,e.kind==DodgeEffect.VestBurst);
+                e.flash=DodgeWeaponArt.Model(e.visual,DodgeWeaponArt.Prop.Flash);
+                if(e.kind==DodgeEffect.VestBurst)
+                {
+                    e.scatter=e.visual.gameObject.AddComponent<DodgeCostumeScatter>();
+                    e.scatter.Build(DodgeApp.Instance.Room.seats[e.owner].team);
+                }
                 var ring=e.visual.gameObject.AddComponent<LineRenderer>();ring.useWorldSpace=false;ring.loop=true;ring.positionCount=48;
-                ring.sharedMaterial=DodgeGame.Instance.trailMaterial;ring.startWidth=ring.endWidth=.08f;ring.startColor=ring.endColor=DodgePartyVisuals.Pink;
+                ring.sharedMaterial=DodgeGame.Instance.trailMaterial;ring.startWidth=ring.endWidth=1f;
                 for(int i=0;i<48;i++){float a=i*Mathf.PI*2/48;ring.SetPosition(i,new Vector3(Mathf.Cos(a)*.5f,.05f,Mathf.Sin(a)*.5f));}
             }
             else if(e.kind==DodgeEffect.Decoy)
@@ -43,8 +61,12 @@ namespace SuperDodgeball
                 for(int s=-1;s<=1;s+=2){DodgePartyVisuals.Part(e.visual,PrimitiveType.Capsule,new Vector3(s*.55f,1.15f,0),new Vector3(.23f,.55f,.23f),c);DodgePartyVisuals.Part(e.visual,PrimitiveType.Capsule,new Vector3(s*.24f,.4f,0),new Vector3(.3f,.5f,.3f),c);}
                 e.visual.rotation=a.transform.rotation;
             }
-            else DodgePartyVisuals.Item(e.visual,e.kind==DodgeEffect.Banana?DodgeItem.Banana:DodgeItem.Tea);
-            if(e.kind==DodgeEffect.Bomb)e.label=DodgeApp.Instance.Clubhouse.WorldLabel("Bomb fuse",e.visual,Vector3.up*.9f,"3",.09f,Color.white);
+            else
+            {
+                DodgePartyVisuals.Item(e.visual,e.kind==DodgeEffect.Banana?DodgeItem.Banana:DodgeItem.Tea);
+                if(e.kind==DodgeEffect.Banana && e.owner<0)
+                    DodgeFanGifts.Ring(e.visual,DodgeFanGifts.Colour(DodgeGiftKind.Peel,default,default),1.05f);
+            }
         }
         public static bool LineClear(Vector3 from,Vector3 to)
         {
@@ -52,11 +74,11 @@ namespace SuperDodgeball
                 if(hit.collider.GetComponent<DodgeSurface>())return false;
             return true;
         }
-        public static bool Strike(DodgeActor source,DodgeActor target,Vector3 point,Vector3 impulse,float launch=0)
+        public static bool Strike(DodgeActor source,DodgeActor target,Vector3 point,Vector3 impulse,float launch=0,float carry=3f)
         {
             var app=DodgeApp.Instance;
             if(!app.CanHurt(source,target) || source==target || target.IsStunned)return false;
-            if(!target.ReceiveHit(point,source && source.isPlayer,impulse,launch))return false;
+            if(!target.ReceiveHit(point,source && source.isPlayer,impulse,launch,carry))return false;
             app.CreditHit(source,target);var bot=target.GetComponent<DodgeBot>();if(bot)bot.RememberAttacker(source);return true;
         }
         public void Melee(DodgeActor source,DodgeWeapon weapon,Vector3 aim,float power)
@@ -111,18 +133,19 @@ namespace SuperDodgeball
         }
         public void Write(BinaryWriter w)
         {
-            w.Write(Explosions);w.Write((byte)effects.Count);
+            WriteWeapons(w);w.Write(Explosions);w.Write((byte)effects.Count);
             foreach(var e in effects.Values){w.Write(e.id);w.Write((byte)e.kind);w.Write((sbyte)e.owner);DodgeNet.WriteVector(w,e.position);DodgeNet.WriteVector(w,e.velocity);w.Write(e.left);w.Write(e.total);}
         }
         public void Read(BinaryReader r)
         {
+            ReadWeapons(r);
             int blasts=r.ReadInt32();if(blasts>Explosions)DodgeGame.Instance.PlayTone(75,.17f,.12f);Explosions=blasts;
             int n=r.ReadByte();if(n>64)throw new InvalidDataException("Too many effects");
             var seen=new HashSet<int>();
             for(int i=0;i<n;i++)
             {
                 int id=r.ReadInt32();var kind=(DodgeEffect)r.ReadByte();int owner=r.ReadSByte();Vector3 p=DodgeNet.ReadVector(r),v=DodgeNet.ReadVector(r);float left=r.ReadSingle(),total=r.ReadSingle();
-                Effect e;if(!effects.TryGetValue(id,out e)){e=new Effect{id=id,kind=kind,owner=owner};Create(e);effects.Add(id,e);}
+                Effect e;if(!effects.TryGetValue(id,out e)){e=new Effect{id=id,kind=kind,owner=owner,position=p,velocity=v,left=left,total=total};Create(e);effects.Add(id,e);}
                 e.position=p;e.velocity=v;e.left=left;e.total=total;e.owner=owner;seen.Add(id);
             }
             remove.Clear();foreach(var id in effects.Keys)if(!seen.Contains(id))remove.Add(id);Remove();
@@ -135,11 +158,45 @@ namespace SuperDodgeball
             foreach(var e in effects.Values)
             {
                 e.visual.position=e.position;
+                if(e.kind==DodgeEffect.HornWave)
+                {
+                    float t=1-Mathf.Clamp01(e.left/e.total);
+                    e.visual.localScale=Vector3.one*Mathf.Lerp(.3f,5,t);
+                    var ring=e.visual.GetComponent<LineRenderer>();var c=DodgePartyVisuals.Mint;c.a=1-t;
+                    ring.startColor=ring.endColor=c;
+                }
+                if(e.kind==DodgeEffect.Refill && e.owner>=0)
+                {
+                    float t=1-Mathf.Clamp01(e.left/e.total);
+                    var hand=DodgeApp.Instance.Actors[e.owner].HandPosition;
+                    e.visual.position=Vector3.Lerp(e.position,hand,t)+Vector3.up*(4*t*(1-t)*1.4f);
+                }
                 if(e.kind==DodgeEffect.Decoy)
                 {e.visual.localScale=Vector3.one*(e.left<1?e.left:1);e.visual.rotation*=Quaternion.Euler(0,0,e.left<1?Time.deltaTime*650:0);}
                 if(e.kind==DodgeEffect.Bomb)
-                {e.visual.localScale=Vector3.one*(1+Mathf.Sin(e.left*(e.left<1?30:12))*.08f);e.label.text=Mathf.CeilToInt(e.left).ToString();e.label.transform.rotation=DodgeGame.Instance.view.transform.rotation;}
-                if(e.kind==DodgeEffect.Burst)e.visual.localScale=Vector3.one*Mathf.Lerp(0,7,1-e.left/e.total);
+                {e.visual.localScale=Vector3.one*(1+Mathf.Sin(e.left*(e.left<1?30:12))*.08f);e.label.text=Mathf.CeilToInt(e.left).ToString("00");e.visual.rotation=Quaternion.Euler(0,DodgeGame.Instance.view.Yaw,0);}
+                if(e.kind==DodgeEffect.Burst || e.kind==DodgeEffect.VestBurst || e.kind==DodgeEffect.RocketBurst)
+                {
+                    float age=e.total-e.left;
+                    e.flash.gameObject.SetActive(age<.26f);
+                    if(age<.26f)e.flash.localScale=Vector3.one*(e.scatter?1.75f:1.22f)*Mathf.Sin(Mathf.PI*Mathf.Clamp01(.09f+age/.285f));
+                    var ring=e.visual.GetComponent<LineRenderer>();ring.enabled=age<.4f;
+                    float radius=Mathf.Lerp(.18f,BlastRadius(e.scatter?DodgeWeapon.Vest:e.kind==DodgeEffect.RocketBurst?DodgeWeapon.Rocket:DodgeWeapon.Bomb),Mathf.SmoothStep(0,1,age/.4f));
+                    if(ring.enabled)
+                    {
+                        float t=Mathf.Clamp01(age/.4f);
+                        var chalk=Color.Lerp(new Color(1f,.73f,.32f),new Color(.98f,.89f,.70f),t);
+                        chalk.a=1f-Mathf.SmoothStep(0,1,t);
+                        ring.startColor=ring.endColor=chalk;
+                        ring.widthMultiplier=Mathf.Lerp(.16f,.045f,t);
+                        for(int i=0;i<ring.positionCount;i++)
+                        {
+                            float angle=i*Mathf.PI*2/ring.positionCount;
+                            ring.SetPosition(i,new Vector3(Mathf.Cos(angle)*radius,.05f,Mathf.Sin(angle)*radius));
+                        }
+                    }
+                    if(e.scatter)e.scatter.Draw(age,e.left);
+                }
             }
         }
         void Tick(float dt)
@@ -157,24 +214,15 @@ namespace SuperDodgeball
                     if(e.position.y<.32f){e.position.y=.32f;e.velocity.y=Mathf.Abs(e.velocity.y)*.4f;e.velocity.x*=.98f;e.velocity.z*=.98f;}
                     if(e.left<=0)
                     {
-                        Explosions++;Vector3 blast=e.position;
-                        foreach(var target in DodgeApp.Instance.Actors)
-                        {
-                            if(!target.gameObject.activeSelf || e.owner<0)continue;
-                            Vector3 point=target.Puppet.BodyCenter;
-                            if(Vector3.Distance(point,blast)<3.5f && LineClear(blast+Vector3.up*.15f,point))
-                                Strike(DodgeApp.Instance.Actors[e.owner],target,point,(point-blast).normalized*7+Vector3.up*3,5);
-                        }
-                        var audience=FindFirstObjectByType<DodgeCrowd>();
-                        if(audience)foreach(var fan in audience.Spectators)
-                            if(Vector3.Distance(fan.BodyPosition,blast)<3.5f && LineClear(blast+Vector3.up*.1f,fan.BodyPosition))fan.Hit(fan.BodyPosition,(fan.BodyPosition-blast).normalized*5+Vector3.up*3,e.owner>=0?DodgeApp.Instance.Actors[e.owner]:null);
-                        additions.Add(new Effect{id=++sequence,kind=DodgeEffect.Burst,position=blast,left=.5f,total=.5f,owner=e.owner});
-                        DodgeGame.Instance.EmitFoam(blast,Vector3.up*2,24,2);DodgeGame.Instance.PlayTone(75,.17f,.12f);
+                        Vector3 blast=e.position;
+                        DamageBlast(blast+Vector3.up*.12f,e.owner>=0?DodgeApp.Instance.Actors[e.owner]:null,DodgeWeapon.Bomb,5f,4f,null,null);
+                        additions.Add(new Effect{id=++sequence,kind=DodgeEffect.Burst,position=blast,left=1.48f,total=1.48f,owner=e.owner});
                     }
                 }
                 else if(e.kind==DodgeEffect.Banana && e.left<e.total-.6f)
                 {
-                    foreach(var actor in DodgeApp.Instance.Actors)
+                    if(DodgeApp.Instance.Referee.SlipGuard(e.position))e.left=0;
+                    else foreach(var actor in DodgeApp.Instance.Actors)
                         if(actor.gameObject.activeSelf && !actor.IsStunned && !DodgeReferee.Restricted(actor) && actor.transform.position.y<.5f && Vector3.Distance(Vector3.ProjectOnPlane(actor.transform.position-e.position,Vector3.up),Vector3.zero)<.65f)
                         {actor.ReceiveHit(actor.Puppet.BodyCenter,false,actor.transform.forward*6+Vector3.up*2,2);e.left=0;break;}
                 }
@@ -184,6 +232,6 @@ namespace SuperDodgeball
             }
             Remove();foreach(var e in additions){Create(e);effects.Add(e.id,e);}
         }
-        void OnDestroy(){ResetEffects();if(Instance==this)Instance=null;}
+        void OnDestroy(){ResetEffects();if(Instance==this){Instance=null;DodgeWeaponArt.Dispose();DodgeWeaponVfx.Dispose();DodgeStorm.Dispose();}}
     }
 }

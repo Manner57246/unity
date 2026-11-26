@@ -5,11 +5,12 @@ namespace SuperDodgeball
 {
     public sealed partial class DodgeApp
     {
+        readonly float[] leavingRoom=new float[5];
         readonly float[] sideDwell = new float[5];
         public int TeamScore(int team) => Room.seats.Where(s=>s.kind!=DodgeSeatKind.Empty && s.team==team).Sum(s=>s.score);
         public bool AllOnCourt => Room.seats.Any(s=>s.kind!=DodgeSeatKind.Empty && s.team==0)
             && Room.seats.Any(s=>s.kind!=DodgeSeatKind.Empty && s.team==1)
-            && Room.seats.Where(s=>s.kind!=DodgeSeatKind.Empty).All(s=>s.inCourt);
+            && Room.seats.Where(s=>s.kind!=DodgeSeatKind.Empty).All(s=>s.inCourt && s.pick >= 0);
         public bool CanHurt(DodgeActor attacker, DodgeActor target) => Page == DodgePage.Playing && !SameTeam(attacker,target)
             && !DodgeReferee.Restricted(attacker) && !DodgeReferee.Restricted(target);
         public bool SameTeam(DodgeActor a, DodgeActor b)
@@ -30,7 +31,7 @@ namespace SuperDodgeball
             foreach(var seat in Room.seats.Where(s=>s.kind==DodgeSeatKind.Bot)) seat.team=SmallerTeam();
             foreach(int i in Enumerable.Range(0,5).Where(i=>Room.seats[i].kind==DodgeSeatKind.Bot))
                 PlaceActor(i,Clubhouse.LobbySpawn(i),0f);
-            InvalidateReady(); Message="已加入"+(team==0?"薄荷队":"蜜桃队"); Net.BroadcastLobby();
+            InvalidateReady(); Message="已加入"+(DodgeColleges.Name(team)); Net.BroadcastLobby();
         }
         public void PlaceActor(int slot,Vector3 position,float yaw)
         {
@@ -62,7 +63,11 @@ namespace SuperDodgeball
         }
         public bool SetOutfit(int slot,int style)
         {
-            if(!IsHost || Page!=DodgePage.Lobby || slot<0 || slot>=5 || Room.seats[slot].kind!=DodgeSeatKind.Human || !Clubhouse.InWardrobe(Actors[slot].transform.position)) return false;
+            if(!IsHost || slot<0 || slot>=5 || Room.seats[slot].kind!=DodgeSeatKind.Human) return false;
+            Vector3 position=Actors[slot].transform.position;
+            bool canChange=Page==DodgePage.Lobby && Clubhouse.InWardrobe(position)
+                || Page==DodgePage.Staging && Clubhouse.InTeamChangingRoom(position, Room.seats[slot].team);
+            if(!canChange) return false;
             style=((style%3)+3)%3;
             Room.seats[slot].outfit=style; Actors[slot].Puppet.Wardrobe.SetStyle(style); Net.BroadcastLobby();
             return true;
@@ -92,6 +97,7 @@ namespace SuperDodgeball
                     int bot=System.Array.FindLastIndex(Room.seats,s=>s.kind==DodgeSeatKind.Bot);
                     if(bot>0)SetBot(bot,false);else Message="没有人机可以移除。";
                     break;
+                case DodgeLobbyAction.Venue: Room.venue=(DodgeVenue)(((int)Room.venue+1)%4);RulesChanged();break;
                 case DodgeLobbyAction.Duration: Room.duration=Room.duration>=300f?60f:Room.duration+60f;RulesChanged();break;
                 case DodgeLobbyAction.Difficulty: Room.difficulty=(Room.difficulty+1)%3;RulesChanged();break;
                 case DodgeLobbyAction.Crowd: Room.crowd=!Room.crowd;RulesChanged();break;
@@ -122,10 +128,14 @@ namespace SuperDodgeball
                 {
                     var seat=Room.seats[i];if(seat.kind==DodgeSeatKind.Empty)continue;
                     bool inside=Clubhouse.InCourt(Actors[i].transform.position,seat.team);
+                    if (Page == DodgePage.Staging && inside && seat.pick < 0 &&
+                        Room.seats.Where(s => s.team == seat.team && s.kind == DodgeSeatKind.Human)
+                            .All(s => Clubhouse.InCourt(Actors[System.Array.IndexOf(Room.seats,s)].transform.position,seat.team)))
+                    { LockTeam(seat.team,0); Clubhouse.SetPhase(Page); changed=true; }
                     if(seat.inCourt!=inside) { seat.inCourt=inside; changed=true; }
                 }
                 if(Page==DodgePage.Staging && AllOnCourt)
-                { game.ClearBalls(); Page=DodgePage.Countdown;Countdown=3f;changed=true; }
+                { game.ClearBalls(); Page=DodgePage.Countdown;Countdown=3f;Clubhouse.SetPhase(Page);changed=true; }
                 if(changed)Net.BroadcastLobby();
             }
         }
@@ -137,17 +147,27 @@ namespace SuperDodgeball
             Vector3 target=Clubhouse.LobbySpawn(slot);
             if(Page!=DodgePage.Lobby)
             {
-                if(Mathf.Abs(actor.transform.position.z)>DodgeCourt.RestZ(20))DodgeRestTarget.BotChoose(bot);
                 bool follow=Room.seats.Where(s=>s.kind==DodgeSeatKind.Human && s.team==seat.team).All(s=>s.inCourt);
                 target=follow?Clubhouse.CourtSpawn(seat.team,slot):Clubhouse.RestSpawn(seat.team,slot);
+                bool seeking=false;
+                leavingRoom[slot]=follow?leavingRoom[slot]+Time.deltaTime:0;
+                if (follow && leavingRoom[slot]<3f && actor.Arsenal.Weapon==DodgeWeapon.Standard && DodgeCourt.InRest(actor.transform.position))
+                {
+                    var fx=DodgePartyEffects.Instance;
+                    if (!fx.CollectWeapon(actor))
+                        seeking=fx.FindRoomWeapon(seat.team,actor.transform.position,out target);
+                    if (!seeking) target=Clubhouse.CourtSpawn(seat.team,slot);
+                }
                 // Walk straight through the doorway first, then fan out on court.
-                if(follow && Mathf.Abs(actor.transform.position.z)>DodgeCourt.PlayDepth+.1f)target=new Vector3(0f,.05f,seat.team==0?-13.75f:13.75f);
+                if(follow && !seeking && Mathf.Abs(actor.transform.position.z)>DodgeCourt.PlayDepth+.1f)target=new Vector3(0f,.05f,seat.team==0?-13.75f:13.75f);
             }
             var delta=Vector3.ProjectOnPlane(target-actor.transform.position,Vector3.up);
             var velocity=delta.magnitude>.3f?delta.normalized*Mathf.Min(3.4f,delta.magnitude*4f):Vector3.zero;
             motor.height=1.9f;motor.center=Vector3.up*.95f;motor.stepOffset=.2f;
             motor.Move((velocity+Vector3.down*2f)*Time.deltaTime);
             if(velocity.sqrMagnitude>.01f)actor.transform.rotation=Quaternion.RotateTowards(actor.transform.rotation,Quaternion.LookRotation(velocity),360f*Time.deltaTime);
+            else if(Page==DodgePage.Lobby && seat.team>=0)
+                actor.transform.rotation=Quaternion.RotateTowards(actor.transform.rotation,Quaternion.Euler(0,seat.team==0?112f:-112f,0),150f*Time.deltaTime);
             actor.SetLocomotion(velocity.magnitude/4f);actor.SetMovement(Vector2.up);actor.SetDive(0);actor.SetCharge(0);actor.SetLean(0);actor.SetShape(0,0);
             return true;
         }

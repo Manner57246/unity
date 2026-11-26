@@ -74,8 +74,8 @@ namespace SuperDodgeball
             if (!anchorInitialized || dt >= 0.5f) { followAnchor = anchor; followVelocity = Vector3.zero; anchorInitialized = true; }
             else followAnchor = Vector3.SmoothDamp(followAnchor, anchor, ref followVelocity, 0.055f, float.PositiveInfinity, dt);
             anchor = followAnchor;
-            Vector3 offset = new Vector3(Mathf.Lerp(0.8f, 1.02f, zoom), Mathf.Lerp(0.7f, 0.48f, zoom),
-                -Mathf.Lerp(5.2f, 4.35f - focusCharge * 0.55f, zoom) - actor.ThrowPulse * 0.14f);
+            Vector3 offset = new Vector3(Mathf.Lerp(0.8f, 1.02f, zoom), Mathf.Lerp(1.20f, 0.48f, zoom),
+                -Mathf.Lerp(5.55f, 4.35f - focusCharge * 0.55f, zoom) - actor.ThrowPulse * 0.14f);
             Vector3 desired = anchor + rotation * offset;
             Vector3 cameraRay = desired - anchor;
             float distance = cameraRay.magnitude;

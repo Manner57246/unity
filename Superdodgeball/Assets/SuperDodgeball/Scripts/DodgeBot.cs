@@ -110,6 +110,7 @@ namespace SuperDodgeball
             actor.SetLocomotion(0f); actor.SetMovement(Vector2.zero);
         }
 
+        public bool WeaponBusy => burstLeft > 0 || dive.Active;
         void Update()
         {
             var game = DodgeGame.Instance;
@@ -139,25 +140,45 @@ namespace SuperDodgeball
                 return;
             }
             if (!motor.enabled) return;
+            if(DodgeVenueDirector.InUpdraft && dive.Active){dive=default;actor.SetDive(0);}
+            if(actor.Kit.PantLeft>0)
+            {
+                ClearActions();velocity=movementSpring=Vector3.zero;actor.SetDive(0);actor.SetMovement(Vector2.zero);actor.SetLocomotion(0);
+                fallSpeed=motor.isGrounded?-2:Mathf.Min(0,fallSpeed)-DodgeDiveMotion.Gravity*Time.deltaTime;
+                DodgeVenueDirector.ApplyWind(transform.position,ref fallSpeed);
+                motor.Move(Vector3.up*fallSpeed*Time.deltaTime);return;
+            }
             if(DodgeApp.Active && DodgeApp.Instance.MoveBotBeforeMatch(this,motor))return;
             if(!dive.Active && actor.Kit.ConsumeRelay())nextEvade=Mathf.Min(nextEvade,clock+.15f);
             if(clock>=nextItem && actor.Kit.Item!=DodgeItem.None && Opponent)
             {
                 bool use=actor.Kit.Item!=DodgeItem.Soap || actor.CrowdStatus.Obscured;
-                if(use && actor.Kit.Use(Opponent.transform.position))nextItem=clock+3f;
+                if(actor.Kit.Item==DodgeItem.AirHorn)
+                {
+                    use=false;
+                    foreach(var ball in DodgeBall.Active) if(ball.ThreatenedByHorn(actor)){use=true;break;}
+                }
+                if(use && (!DodgePartyKit.Regulated(actor.Kit.Item) || !DodgeApp.Instance.Referee.SeesItem(actor)) && actor.Kit.Use(Opponent.transform.position))nextItem=clock+3f;
             }
-            if(DodgeRestTarget.BotVisit(this,motor))return;
+            if(actor.Arsenal.WearingVest && Opponent && !DodgeApp.Instance.SameTeam(actor,Opponent) &&
+               Vector3.Distance(transform.position,Opponent.transform.position)<3.8f && actor.Kit.TryPopVest())return;
+            if (DodgeApp.Active && !WeaponBusy && clock >= nextThink)
+            {
+                var fx=DodgePartyEffects.Instance;
+                if (actor.Arsenal.Weapon==DodgeWeapon.Standard) fx.CollectWeapon(actor);
+            }
             if (clock >= nextThink)
             {
                 nextThink = clock + 0.12f;
                 Think(game);
             }
 
+            if(DodgeCombat.IsLauncher(VisualWeapon))actor.Kit.LauncherAim=burstLeft>0?lockedAim:observedPoint;
             bool evading = clock < evadeUntil || dive.Active;
             bool diving = evading && evadeMode == 1;
             if (diving && !dive.Active)
             {
-                if (motor.isGrounded) {bool spring=actor.Kit.TakeSpring();springScale=spring?1.35f:1;dive.Begin(spring?.72f:.62f, ref fallSpeed);}
+                if (motor.isGrounded && !DodgeVenueDirector.InUpdraft) {bool spring=actor.Kit.TakeSpring();springScale=spring?1.35f:1;dive.Begin(spring?.72f:.62f, ref fallSpeed);}
                 else { evadeMode = 0; diving = false; }
             }
             actor.SetDive(diving ? 1f : 0f);
@@ -182,7 +203,7 @@ namespace SuperDodgeball
             if (burstLeft > 0)
             {
                 State = DodgeBotState.Throwing;
-                if (clock >= releaseAt && (!firstRelease || (queuedWeapon < DodgeWeapon.Bat && transform.InverseTransformPoint(actor.HandPosition).z > 0.05f) || clock >= releaseDeadline))
+                if (clock >= releaseAt && (!firstRelease || !DodgeCombat.UsesThrowPose(queuedWeapon) || transform.InverseTransformPoint(actor.HandPosition).z > 0.05f || clock >= releaseDeadline))
                     Release(game);
                 return;
             }
@@ -190,7 +211,7 @@ namespace SuperDodgeball
             {
                 if (!HasGoal() || !HasSight(observedPoint)) { CancelAttack(); return; }
                 State = DodgeBotState.Charging;
-                Charge = Mathf.MoveTowards(Charge, chargeGoal, Time.deltaTime / 1.25f);
+                Charge = Mathf.MoveTowards(Charge, chargeGoal, Time.deltaTime / (actor.Zeus.Transformed ? DodgeZeus.ChargeSeconds : 1.25f));
                 actor.SetCharge(Charge);
                 if (Charge >= chargeGoal - 0.001f) BeginThrow();
             }
@@ -203,7 +224,7 @@ namespace SuperDodgeball
                 {
                     charging = true;
                     Charge = 0f;
-                    chargeGoal = WantedDrop ? 0.12f : style == DodgeBotStyle.Pitcher ? Range(0.65f, 0.95f) : Range(0.22f, 0.62f);
+                    chargeGoal = actor.Zeus.Transformed ? Range(.75f,1f) : WantedDrop ? 0.12f : style == DodgeBotStyle.Pitcher ? Range(0.65f, 0.95f) : Range(0.22f, 0.62f);
                 }
             }
         }
@@ -214,13 +235,23 @@ namespace SuperDodgeball
         {
             ObserveThreats();
             if (clock < evadeUntil || burstLeft > 0) return;
+            if (DodgeApp.Active)
+            {
+                foreach (var gift in DodgeAirdrop.Active)
+                {
+                    if (!gift || !gift.Landed || gift.Claimed ||
+                        !(gift.Kind==DodgeGiftKind.Skill && !actor.Kit.Has(gift.Skill) || gift.Kind==DodgeGiftKind.Zeus && !actor.Zeus.Transformed)) continue;
+                    if (Vector3.Distance(transform.position,gift.AimPosition)>7f) continue;
+                    destination=gift.AimPosition; return;
+                }
+            }
             DodgeAirdrop drop = null;
             bool wantsWeapon = actor.Arsenal.Charges == 0 || style == DodgeBotStyle.Collector;
             float nearest = 20f;
             foreach (var candidate in DodgeAirdrop.Active)
             {
-                if (!candidate || candidate.Claimed) continue;
-                bool wanted = candidate.Kind == DodgeGiftKind.Soap ? actor.CrowdStatus.Obscured : candidate.Kind==DodgeGiftKind.Item ? actor.Kit.Item==DodgeItem.None : wantsWeapon;
+                if (!candidate || candidate.Claimed || candidate.Kind == DodgeGiftKind.Zeus || candidate.Kind == DodgeGiftKind.Peel || candidate.Kind == DodgeGiftKind.Skill) continue;
+                bool wanted = candidate.Kind == DodgeGiftKind.Ammo ? actor.Arsenal.CanRefill : candidate.Kind == DodgeGiftKind.Soap ? actor.CrowdStatus.Obscured : candidate.Kind==DodgeGiftKind.Item ? actor.Kit.Item==DodgeItem.None : wantsWeapon;
                 float crateDistance = Vector3.Distance(transform.position, candidate.AimPosition);
                 if (!wanted || crateDistance >= nearest || !HasSight(candidate.AimPosition)) continue;
                 drop = candidate; nearest = crateDistance;
@@ -268,7 +299,7 @@ namespace SuperDodgeball
             foreach (var other in FindObjectsByType<DodgeActor>(FindObjectsSortMode.None))
             {
                 if(DodgeApp.Active && DodgeApp.Instance.SameTeam(actor,other))continue;
-                if (other == actor || !other.isActiveAndEnabled || other.IsStunned || other.transform.position.y > 1f) continue;
+                if (other == actor || !other.isActiveAndEnabled || other.IsStunned || (other.transform.position.y > 1f && !DodgeVenueDirector.InUpdraft && !other.Zeus.Transformed)) continue;
                 Vector3 difference = other.transform.position - transform.position;
                 if (difference.sqrMagnitude > 30f * 30f || !HasSight(other.transform.position + Vector3.up * 1.2f)) continue;
                 int playerAttackers = 0;
@@ -325,7 +356,7 @@ namespace SuperDodgeball
             foreach (var item in stale) noticed.Remove(item);
             if(DodgePartyEffects.Instance && clock>=nextEvade)
                 foreach(var effect in DodgePartyEffects.Instance.Active)
-                    if(effect.kind==DodgeEffect.Bomb && effect.left<1.5f && Vector3.Distance(effect.position,transform.position)<4f && HasSight(effect.position))
+                    if(effect.kind==DodgeEffect.Bomb && effect.left<1.5f && Vector3.Distance(effect.position,transform.position)<DodgePartyEffects.BlastRadius(DodgeWeapon.Bomb)+.75f && HasSight(effect.position))
                     {
                         CancelAttack();evadeMode=1;evadeDirection=Vector3.ProjectOnPlane(transform.position-effect.position,Vector3.up).normalized;
                         if(evadeDirection.sqrMagnitude<.01f)evadeDirection=transform.right;
@@ -353,25 +384,28 @@ namespace SuperDodgeball
             if (direction.magnitude < 0.65f) direction = Vector3.zero;
             else direction.Normalize();
             if (evading) direction = evadeDirection;
+            if(DodgeApp.Active && DodgeApp.Instance.Venue)direction=DodgeApp.Instance.Venue.AvoidRollers(transform.position,direction);
             direction = Steer(direction);
             float speed = Mathf.Min(5.8f, moveSpeed) * (charging || burstLeft > 0 ? 0.38f : 1f);
             if (evading && evadeMode >= 2) speed *= 0.3f;
-            speed*=actor.Kit.RetreatSpeed(direction)*(actor.Kit.Flat>0?.55f:1);
+            speed*=actor.Kit.RetreatSpeed(direction)*Mathf.Lerp(1f,.55f,actor.Kit.FlatAmount);
             if (diving) speed = dive.Speed*springScale;
-            velocity = Vector3.SmoothDamp(velocity, direction * speed, ref movementSpring, diving ? 0.04f : 0.13f);
-            motor.height = diving || actor.Kit.Flat>0 ? 0.95f : 1.9f;
+            velocity = Vector3.SmoothDamp(velocity, direction * speed, ref movementSpring, (diving ? 0.04f : 0.13f)*actor.Kit.ResponseTime);
+            motor.height = diving ? .95f : Mathf.Lerp(1.9f,.95f,actor.Kit.FlatAmount);
             motor.center = Vector3.up * motor.height * 0.5f;
             motor.stepOffset = diving ? 0.1f : 0.2f;
             bool divingBeforeMove = dive.Active;
             if (dive.Active) dive.Step(Time.deltaTime, ref fallSpeed);
             else fallSpeed = motor.isGrounded ? -2f : Mathf.Max(-25f, fallSpeed - DodgeDiveMotion.Gravity * Time.deltaTime);
+            if (!dive.Active) actor.Zeus.Hover(ref fallSpeed, !evading && (charging || burstLeft > 0 && queuedWeapon == DodgeWeapon.Thunderbolt), burstLeft > 0 ? attackPower : Charge);
             Vector3 before = transform.position;
-            var collision = motor.Move((velocity + Vector3.up * fallSpeed) * Time.deltaTime);
+            DodgeVenueDirector.ApplyWind(transform.position,ref fallSpeed);
+            var collision = motor.Move((velocity*actor.Kit.RunMultiplier + Vector3.up * fallSpeed) * Time.deltaTime);
             if (dive.Resolve(collision, ref fallSpeed)) { actor.Land(); game.EmitFoam(transform.position, -evadeDirection, 7, 1f); }
             if (divingBeforeMove && !dive.Active) { evadeUntil = clock; nextEvade = clock + 1.3f; }
             Vector3 face = HasGoal() ? Vector3.ProjectOnPlane(observedPoint - transform.position, Vector3.up) : direction;
             if (diving) face = direction;
-            if (face.sqrMagnitude > 0.01f) transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(face), 220f * Time.deltaTime);
+            if (face.sqrMagnitude > 0.01f) transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(face), 220f * Time.deltaTime / actor.Kit.ResponseTime);
             Vector3 localMove = transform.InverseTransformDirection(velocity / Mathf.Max(1f, moveSpeed));
             actor.SetMovement(new Vector2(localMove.x, localMove.z));
             actor.SetLocomotion(diving ? 0f : Mathf.Clamp01(velocity.magnitude / Mathf.Max(0.01f, moveSpeed)));
@@ -381,7 +415,7 @@ namespace SuperDodgeball
                 bubbleDistance = 0f;
                 game.EmitFoam(transform.position - velocity.normalized * 0.15f, -velocity, 2, 0.65f);
             }
-            if (transform.position.y < -5f) { actor.ResetActor(); ResetBrain(); }
+            if (transform.position.y < -5f) { actor.ResetActor(DodgeApp.Active && DodgeApp.Instance.Room.leg>0); ResetBrain(); }
         }
 
         Vector3 Steer(Vector3 direction)
@@ -422,6 +456,7 @@ namespace SuperDodgeball
 
         void BeginThrow()
         {
+            if(actor.Kit.BiteLeft>0)return;
             charging = false;
             attackPower = Charge;
             queuedWeapon = WantedDrop?DodgeWeapon.Standard:actor.Arsenal.ConsumeAttack();
@@ -437,7 +472,8 @@ namespace SuperDodgeball
             float error = WantedDrop ? 0.06f : EffectiveAimError;
             lockedAim = observedPoint + observedVelocity * Mathf.Min(0.6f, (flight + 0.27f) * 0.65f)
                 + new Vector3(Range(-error, error), Range(-error, error) * 0.5f, Range(-error, error));
-            actor.Throw(attackPower,releaseAt-clock);
+            if(queuedWeapon==DodgeWeapon.Bat)actor.Kit.BeginSwing(queuedWeapon,lockedAim);
+            else if(DodgeCombat.UsesThrowPose(queuedWeapon) || queuedWeapon==DodgeWeapon.Hammer)actor.Throw(attackPower,releaseAt-clock);
             actor.SetCharge(0f);
             Charge = 0f;
             nextAttack = clock + (queuedWeapon == DodgeWeapon.Burst ? 3.7f : Range(2.5f, 3.4f));
@@ -448,8 +484,8 @@ namespace SuperDodgeball
             Vector3 origin = actor.HandPosition + transform.forward * 0.2f;
             float speed = queuedWeapon == DodgeWeapon.Bowling ? Mathf.Lerp(14f, 24f, attackPower)
                 : Mathf.Lerp(queuedWeapon == DodgeWeapon.Burst ? 20f : 17f, 34f, attackPower);
-            DodgeCombat.Release(actor,queuedWeapon,origin,lockedAim,DodgeBall.SolveLaunchVelocity(origin,lockedAim,speed),attackPower,!WantedDrop,Opponent);
-            if(!DodgeCombat.IsMelee(queuedWeapon))actor.ReleaseBall();
+            DodgeCombat.Release(actor,queuedWeapon,origin,lockedAim,DodgeBall.SolveLaunchVelocity(origin,lockedAim,speed*actor.Kit.ThrowStrength),attackPower,!WantedDrop,Opponent);
+            if(DodgeCombat.UsesThrowPose(queuedWeapon))actor.ReleaseBall();
             ShotsFired++;
             LastWeaponFired = queuedWeapon;
             firstRelease = false;
